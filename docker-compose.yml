@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────
+#  Ryx — Docker Compose (MongoDB + Back-end + Service AI)
+#  Lancer :  docker compose up --build
+#  Arrêter : docker compose down
+# ─────────────────────────────────────────────
+
+services:
+  # ── MongoDB ──────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: ryx-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Back-end (Node / Express) ────────────────
+  backend:
+    build: ./back-end
+    container_name: ryx-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./back-end/.env
+    environment:
+      # Surcharge MONGO_URI pour pointer vers le conteneur mongo
+      MONGO_URI: mongodb://mongo:27017/ryxdb
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  # ── Service AI (Python / FastAPI) ────────────
+  service-ai:
+    build: ./service-ai
+    container_name: ryx-service-ai
+    restart: unless-stopped
+    ports:
+      # Host 8082 (app mobile) → conteneur. Après `docker compose build`, l’image écoute sur 8082.
+      - "8082:8082"
+    env_file:
+      - ./service-ai/.env
+    environment:
+      MONGO_URI: mongodb://mongo:27017/ryxdb
+      PORT: "8082"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo-data:

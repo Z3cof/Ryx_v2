@@ -1,0 +1,7 @@
+# Python 3.11 ou 3.12 uniquement (3.14 : protobuf / google-generativeai incompatibles).
+fastapi==0.111.0
+uvicorn[standard]==0.27.0
+python-dotenv==1.0.1
+google-generativeai>=0.8.3,<0.9
+protobuf>=5.29.0,<6
+pymongo==4.13.0

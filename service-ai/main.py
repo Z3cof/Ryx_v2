@@ -1,0 +1,455 @@
+from __future__ import annotations
+
+import os
+import re
+import time
+from typing import Annotated, List, Literal, Optional
+
+import google.generativeai as genai
+from dotenv import load_dotenv
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
+
+from mongo_context import build_user_finance_context
+
+load_dotenv()
+
+# GEMINI_API_KEY (recommandé) ou GOOGLE_API_KEY pour compatibilité
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# gemini-1.5-flash renvoie souvent 404 sur l'API actuelle ; 2.5 / flash-latest sont les alias courants.
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+GEMINI_MODEL_FALLBACK_RAW = os.getenv("GEMINI_MODEL_FALLBACK", "").strip()
+
+_gemini_ready = False
+
+
+def _ensure_gemini_configured() -> None:
+    """Configure Gemini à la demande (le serveur démarre même si la clé manque — /health reste joignable)."""
+    global _gemini_ready
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "GEMINI_API_KEY (ou GOOGLE_API_KEY) manquant dans service-ai/.env. "
+                "Crée une clé sur https://aistudio.google.com/app/apikey puis redémarre le service."
+            ),
+        )
+    if not _gemini_ready:
+        genai.configure(api_key=GEMINI_API_KEY)
+        _gemini_ready = True
+
+# Chaîne de modèles : .env puis alias courants (404 / quota → essai suivant).
+_FALLBACK_CHAIN_EXTRA: List[str] = [
+    "gemini-flash-latest",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
+]
+
+
+def _models_to_try() -> List[str]:
+    out: List[str] = []
+    for m in [MODEL_NAME, GEMINI_MODEL_FALLBACK_RAW, *_FALLBACK_CHAIN_EXTRA]:
+        if m and m not in out:
+            out.append(m)
+    return out
+
+
+MODELS_TO_TRY = _models_to_try()
+
+# Même URI que le back Node (`MONGO_URI`). Si absent, le chat fonctionne sans contexte Mongo.
+# Optionnel : si défini, exiger l’en-tête `X-Ryx-Ai-Secret` sur POST /chat (même valeur côté app Expo).
+RYX_AI_SERVICE_SECRET = os.getenv("RYX_AI_SERVICE_SECRET", "").strip()
+
+app = FastAPI(title="Ryx AI Service", version="0.3.0")
+
+def _parse_csv_env(name: str) -> List[str]:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return []
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+AI_CORS_ORIGINS = _parse_csv_env("AI_CORS_ORIGINS")
+
+app.add_middleware(
+    CORSMiddleware,
+    # Si AI_CORS_ORIGINS est vide, on reste permissif (dev). En prod, définir une whitelist.
+    allow_origins=AI_CORS_ORIGINS or ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+_RATE_BUCKET: dict[str, List[float]] = {}
+
+
+def _rate_check(key: str, limit: int, window_s: int) -> None:
+    now = time.time()
+    cutoff = now - window_s
+    bucket = _RATE_BUCKET.get(key, [])
+    bucket = [t for t in bucket if t >= cutoff]
+    if len(bucket) >= limit:
+        raise HTTPException(status_code=429, detail="Trop de requêtes. Réessaie plus tard.")
+    bucket.append(now)
+    _RATE_BUCKET[key] = bucket
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant", "system"] = "user"
+    content: str = Field(..., min_length=1)
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+    locale: Literal["fr", "en"] = "fr"
+    user_name: Optional[str] = None
+    # _id Mongo Ryx : enrichit le prompt (profil + opérations récentes) si MONGO_URI est défini.
+    user_mongo_id: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
+
+def _app_guide(locale: str) -> str:
+    if locale == "en":
+        return (
+            "\n\nRYX APP (navigation — explain paths, do not claim you clicked):\n"
+            "- Bottom tabs: Home (dashboard), Expenses, Ryx assistant (center), My store (sellers), Settings.\n"
+            "- Home: monthly balance, savings vs spending, projects, pull to refresh.\n"
+            "- Expenses: add expense/income, categories, monthly totals.\n"
+            "- Settings: profile, change password, language, assistant, delete account.\n"
+            "- My store (if merchant): products, orders, shop settings.\n"
+            "- Registration/login: email + phone OTP; forgot password from login screen.\n"
+        )
+    return (
+        "\n\nAPP RYX (navigation — décris les chemins, ne prétends pas avoir cliqué) :\n"
+        "- Onglets : Accueil (tableau de bord), Dépenses, Assistant Ryx (centre), Ma boutique (vendeurs), Paramètres.\n"
+        "- Accueil : solde du mois, épargne vs dépenses, projets, tirer pour rafraîchir.\n"
+        "- Dépenses : ajouter sortie/entrée, catégories, totaux du mois.\n"
+        "- Paramètres : profil, mot de passe, langue, assistant, suppression compte.\n"
+        "- Ma boutique (si vendeur) : produits, commandes, réglages boutique.\n"
+        "- Inscription / connexion : e-mail + OTP téléphone ; mot de passe oublié depuis l’écran connexion.\n"
+    )
+
+
+def _advice_rules(locale: str) -> str:
+    if locale == "en":
+        return (
+            "\n\nPERSONALIZED ADVICE:\n"
+            "- When user data is provided above, use real numbers (XOF); never invent transactions.\n"
+            "- Compare income, spending cap, recurring commitments, and net before big purchases.\n"
+            "- For cars/housing/equipment: give 2–3 realistic options (budget / mid / stretch), "
+            "monthly cost estimate, and a clear recommendation (wait / cautious / ok) with reasons.\n"
+            "- If data is missing, say what you’d need and give prudent general rules (emergency fund, 50/30/20, debt first).\n"
+            "- Be empathetic; no shame; short actionable bullets.\n"
+        )
+    return (
+        "\n\nCONSEILS PERSONNALISÉS :\n"
+        "- Quand des données utilisateur sont fournies ci-dessus, utilise les vrais chiffres (XOF) ; n’invente pas d’opérations.\n"
+        "- Compare entrées, plafond du mois, récurrents et net avant un gros achat.\n"
+        "- Voiture / logement / équipement : propose 2–3 options réalistes (économique / milieu / limite), "
+        "coût mensuel estimé, et une recommandation claire (attendre / prudent / ok) avec raisons.\n"
+        "- Si données insuffisantes, dis ce qu’il manque et donne des règles prudentes (réserve, priorité dettes).\n"
+        "- Ton bienveillant ; pas de jugement ; conseils actionnables en puces.\n"
+    )
+
+
+def build_system_prompt(locale: str, user_name: Optional[str]) -> str:
+    """
+    Prompt système principal.
+
+    Note: ne pas dupliquer cette fonction : une redéfinition écrase l'autre
+    et peut supprimer des consignes importantes.
+    """
+    if locale == "en":
+        base = (
+            "You are Ryx, a friendly budgeting assistant inside a mobile app for small merchants "
+            "and individuals in West Africa. You answer concisely, in plain language, and you never invent app features. "
+            "You prefer bullet points and short paragraphs."
+        )
+        if user_name:
+            base += f" The user is called {user_name}."
+        base += (
+            " IMPORTANT SCOPE: Only answer questions about the user's finances (budgeting, expenses, income, balance, savings, "
+            "transactions, recurring items, shop sales/orders) and how to use the Ryx mobile app. "
+            "Purchase advice (e.g. car, equipment, rent vs buy) IS in scope when tied to budget, affordability, or priorities. "
+            "Refuse trivia and general knowledge unrelated to money or the app (e.g. company founders, capitals, history, sports scores, coding homework)."
+        )
+        base += (
+            " If the user asks for actions in the app (add expense, see budget, become a vendor, etc.), "
+            "explain step by step where to tap in the UI instead of pretending to perform the action."
+        )
+        return base + _app_guide("en") + _advice_rules("en")
+
+    base = (
+        "Tu es Ryx, un assistant budget sympathique intégré dans une application mobile pour petits commerçants "
+        "et particuliers en Afrique de l'Ouest. Tu réponds en français simple, de façon concise, sans inventer "
+        "de fonctionnalités qui n'existent pas. Tu préfères les listes à puces et les petits paragraphes."
+    )
+    if user_name:
+        base += f" L'utilisateur s'appelle {user_name}."
+    base += (
+        " IMPORTANT (PÉRIMÈTRE) : tu ne réponds qu’aux questions sur les finances de l’utilisateur "
+        "(budget, dépenses, entrées, solde, épargne, transactions, récurrents, ventes/commandes boutique) "
+        "et sur l’utilisation de l’application Ryx. "
+        "Les conseils d’achat importants (voiture, logement, équipement…) liés au budget, aux moyens ou aux priorités "
+        "font partie du périmètre. "
+        "Refuse la culture générale sans lien (fondateur d’une entreprise, capitale d’un pays, histoire, sport, devoirs de code, etc.) "
+        "et propose plutôt une question finances ou app."
+    )
+    base += (
+        " Si l'utilisateur te demande de faire une action dans l'app (ajouter une dépense, voir le budget, "
+        "devenir vendeur, etc.), explique-lui pas à pas où appuyer dans l'interface au lieu de prétendre le faire."
+    )
+    return base + _app_guide("fr") + _advice_rules("fr")
+
+
+_SCOPE_PATTERNS = [
+    # Finances (incl. « finances » / finance — absent avant → refus à tort pour « comment vont mes finances »)
+    r"\b(solde|balance|budget|finances?|financier|financière|financiere|financial|money|argent|compte\b|comptes|dépense|depense|dépenses|depenses|entrée|entree|revenu|income|expense|spend|spent|saving|épargne|epargne|transaction|opération|operation|paiement|payment|dette|crédit|credit|prêt|pret|loan|moyens?|means|combien|how much|how many|montant|amount|total)\b",
+    # Achats / investissement (conseils financiers)
+    r"\b(achat|achats|acheter|investir|investissement|investissements|placement|placements|rentabilité|rentabilite|profit|marge|roi|capital)\b",
+    # Projets d’achat (voiture, logement…) — conseils liés au budget
+    r"\b(voiture|voitures|véhicule|vehicule|automobile|autos?|gros\s+achat|logement|maison|appartement|terrain)\b",
+    # Conseils / faisabilité
+    r"\b(suggestion|suggestions|conseil|conseils|avis|affordable|worth it|should i buy|can i afford|puis-je me permettre|est-ce\s+rentable)\b",
+    # Récurrents / mensuel
+    r"\b(récurrent|recurrent|mensuel|monthly|abonnement|subscription)\b",
+    # Boutique / ventes
+    r"\b(boutique|vendeur|seller|vente|ventes|sale|sales|commande|commandes|order|orders|produit|produits|product|products)\b",
+    # App Ryx / navigation
+    r"\b(ryx|application|app|écran|ecran|profil|paramètres|parametres|accueil|connexion|login|inscription|register|otp|mot de passe|password|oublié|oublie|forgot)\b",
+    # Projets / épargne
+    r"\b(projet|projets|épargne|epargne|objectif|objectifs|goal|goals|cible|économiser|economiser|save|saving)\b",
+    # Analyse / résumé
+    r"\b(résumé|resume|summary|analyse|analyze|situation|état|etat|status|overview|comment\s+va)\b",
+    r"\b(conseille|conseiller|recommande|recommandation|recommend|help me|aide-moi|aide moi)\b",
+]
+
+_SHORT_FOLLOWUP = re.compile(
+    r"^(oui|non|ok|d'?accord|dac|merci|thanks|thank you|yes|no|continue|vas[- ]?y|go ahead|pourquoi|why|explique|explain)\s*[!?.]*$",
+    re.IGNORECASE,
+)
+
+
+_GREETING_PATTERN = (
+    r"\b(bonjour|salut|coucou|hello|hi|hey|bonsoir|bonne\s+(journée|journee)|bonne\s+soirée|bonne\s+soiree|"
+    r"comment\s+ça\s+va|comment\s+ca\s+va|comment\s+vas-tu|comment\s+allez-vous|how\s+are\s+you)\b"
+)
+
+
+def _text_matches_scope(blob: str) -> bool:
+    s = (blob or "").strip().lower()
+    if not s:
+        return True
+    if re.search(_GREETING_PATTERN, s, flags=re.IGNORECASE):
+        return True
+    return any(re.search(p, s, flags=re.IGNORECASE) for p in _SCOPE_PATTERNS)
+
+
+def _is_in_scope(text: str, prior_user_messages: Optional[List[str]] = None) -> bool:
+    if _text_matches_scope(text):
+        return True
+    s = (text or "").strip().lower()
+    if prior_user_messages and _SHORT_FOLLOWUP.match(s):
+        history_blob = " ".join(prior_user_messages[-6:])
+        return _text_matches_scope(history_blob)
+    return False
+
+
+def _out_of_scope_reply(locale: str) -> str:
+    if locale == "en":
+        return (
+            "I only help with your finances and the Ryx app (expenses, income, balance, budget, projects, shop). "
+            "You can also ask purchase advice tied to your budget (e.g. what car fits my means). "
+            "Ask me something in that scope."
+        )
+    return (
+        "Je réponds sur tes finances et l’app Ryx (dépenses, entrées, solde, budget, projets, boutique). "
+        "Tu peux aussi demander un avis d’achat lié à ton budget (ex. quelle voiture selon mes moyens). "
+        "Pose-moi une question dans ce périmètre."
+    )
+
+
+def _extract_reply(response) -> str:
+    try:
+        text = response.text
+        if text:
+            return text.strip()
+    except (ValueError, AttributeError):
+        pass
+    candidates = getattr(response, "candidates", None) or []
+    if not candidates:
+        return ""
+    parts = getattr(candidates[0].content, "parts", None) or []
+    if not parts:
+        return ""
+    return "".join(getattr(p, "text", "") or "" for p in parts).strip()
+
+
+def _is_quota_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    if "429" in msg or "quota" in msg or "resource exhausted" in msg:
+        return True
+    try:
+        from google.api_core import exceptions as google_exc  # type: ignore[import-untyped]
+
+        return isinstance(exc, google_exc.ResourceExhausted)
+    except ImportError:
+        return False
+
+
+def _should_try_next_model(exc: BaseException) -> bool:
+    """429 / quota, ou 404 modèle introuvable / non supporté pour generateContent."""
+    if _is_quota_error(exc):
+        return True
+    msg = str(exc).lower()
+    if "404" in msg and ("not found" in msg or "is not found" in msg):
+        return True
+    if "not supported for generatecontent" in msg:
+        return True
+    return False
+
+
+def _generate(
+    model_name: str,
+    system_prompt: str,
+    history: List[dict],
+    last_content: str,
+    generation_config: dict,
+):
+    model = genai.GenerativeModel(
+        model_name=model_name,
+        system_instruction=system_prompt,
+    )
+    if history:
+        chat = model.start_chat(history=history)
+        return chat.send_message(last_content, generation_config=generation_config)
+    return model.generate_content(last_content, generation_config=generation_config)
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(
+    request: Request,
+    req: ChatRequest,
+    x_ryx_ai_secret: Annotated[Optional[str], Header(alias="X-Ryx-Ai-Secret")] = None,
+) -> ChatResponse:
+    limit = int(os.getenv("AI_RATE_LIMIT_CHAT_MAX", "30"))
+    window_s = int(os.getenv("AI_RATE_LIMIT_CHAT_WINDOW_S", "600"))
+    ip = (getattr(request.client, "host", None) or "unknown").strip()
+    _rate_check(f"chat:{ip}", limit=limit, window_s=window_s)
+
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="messages ne peut pas être vide")
+
+    if RYX_AI_SERVICE_SECRET and (x_ryx_ai_secret or "").strip() != RYX_AI_SERVICE_SECRET:
+        raise HTTPException(
+            status_code=401,
+            detail="En-tête X-Ryx-Ai-Secret manquant ou invalide.",
+        )
+
+    _ensure_gemini_configured()
+
+    system_prompt = build_system_prompt(req.locale, req.user_name)
+    uid = (req.user_mongo_id or "").strip()
+    if uid:
+        ctx = await run_in_threadpool(build_user_finance_context, uid, req.locale)
+        if ctx:
+            system_prompt = f"{ctx}\n{system_prompt}"
+
+    generation_config = {
+        "temperature": 0.3,
+        # 512 tronque vite les réponses. Configurable via .env.
+        "max_output_tokens": int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "1024")),
+    }
+
+    prior_raw = list(req.messages[:-1])
+    while prior_raw and prior_raw[0].role in ("assistant", "system"):
+        prior_raw.pop(0)
+
+    history: List[dict] = []
+    for m in prior_raw:
+        if m.role == "system":
+            continue
+        gemini_role = "user" if m.role == "user" else "model"
+        history.append({"role": gemini_role, "parts": [m.content]})
+
+    last = req.messages[-1]
+    if last.role != "user":
+        raise HTTPException(
+            status_code=400,
+            detail="Le dernier message doit être du rôle « user ».",
+        )
+
+    prior_user_texts = [m.content for m in req.messages if m.role == "user"]
+
+    # Garde-fou hors périmètre : on refuse sans appeler le modèle.
+    if not _is_in_scope(last.content, prior_user_texts[:-1]):
+        return ChatResponse(reply=_out_of_scope_reply(req.locale))
+
+    last_err: Optional[BaseException] = None
+
+    for attempt_model in MODELS_TO_TRY:
+        try:
+            response = _generate(
+                attempt_model,
+                system_prompt,
+                history,
+                last.content,
+                generation_config,
+            )
+        except Exception as e:  # pragma: no cover
+            last_err = e
+            if _should_try_next_model(e) and attempt_model != MODELS_TO_TRY[-1]:
+                continue
+            status = 429 if _is_quota_error(e) else 502
+            if _is_quota_error(e):
+                hint = (
+                    "Quota / limite : réessaie dans une minute. "
+                    "Voir https://ai.google.dev/gemini-api/docs/rate-limits"
+                )
+            else:
+                hint = (
+                    "Modèle indisponible ou inconnu pour ton projet : mets GEMINI_MODEL dans .env "
+                    "(ex. gemini-2.5-flash, gemini-flash-latest). Liste : "
+                    "https://ai.google.dev/gemini-api/docs/models"
+                )
+            raise HTTPException(
+                status_code=status,
+                detail=f"Erreur API Gemini ({attempt_model}): {e}. {hint}",
+            ) from e
+
+        reply = _extract_reply(response)
+        if not reply:
+            raise HTTPException(status_code=502, detail="Réponse Gemini vide ou bloquée.")
+
+        return ChatResponse(reply=reply)
+
+    if last_err:
+        raise HTTPException(status_code=429, detail=str(last_err)) from last_err
+    raise HTTPException(status_code=502, detail="Aucun modèle disponible.")
+
+
+@app.get("/health")
+async def health() -> dict:
+    mongo_on = bool(os.getenv("MONGO_URI", "").strip())
+    return {
+        "status": "ok" if GEMINI_API_KEY else "degraded",
+        "gemini_configured": bool(GEMINI_API_KEY),
+        "model": MODEL_NAME,
+        "models_try_order": MODELS_TO_TRY,
+        "provider": "google-gemini",
+        "mongo_context": mongo_on,
+        "ai_secret_required": bool(RYX_AI_SERVICE_SECRET),
+        "port": int(os.getenv("PORT", "8082")),
+    }
+
+
+if __name__ == "__main__":  # pragma: no cover
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8082")), reload=True)

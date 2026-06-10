@@ -1,0 +1,46 @@
+# Dependencies (ne jamais versionner node_modules)
+node_modules/
+**/node_modules/
+
+# Backend
+back-end/.env
+
+# Frontend (Expo / React Native)
+front-end/.env
+front-end/RyxMobile/.env
+.expo/
+dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# Python / AI
+service-ai/venv/
+__pycache__/
+*.pyc
+.env
+.venv/
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+*.tgz
+
+# Docker
+docker-compose.override.yml
+
+# Build & cache
+.npm
+.eslintcache
+
+.cursor-temp-*
+node_modules
+.env
+dist
+build
