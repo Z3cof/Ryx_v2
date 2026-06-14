@@ -77,7 +77,11 @@ async function _syncQuestProgress(userId) {
 
     if (quest.type === 'log_expenses' || quest.type === 'first_action') {
       const since = quest.type === 'first_action' ? new Date(0) : startOfWeek;
-      newValue = await Transaction.countDocuments({ userId, createdAt: { $gte: since } });
+      const query = { userId, createdAt: { $gte: since } };
+      if (quest.type === 'log_expenses') {
+        query.type = 'out';
+      }
+      newValue = await Transaction.countDocuments(query);
     }
     else if (quest.type === 'limit_category' && quest.targetCategory) {
       if (userOid) {

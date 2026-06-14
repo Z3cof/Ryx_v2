@@ -62,10 +62,14 @@ async function _updateQuestProgress(userId) {
     if (quest.type === 'log_expenses' || quest.type === 'first_action') {
       // Fenêtre de temps : cette semaine pour log_expenses, tout le temps pour first_action
       const since = quest.type === 'first_action' ? new Date(0) : startOfWeek;
-      const count = await Transaction.countDocuments({
+      const query = {
         userId,
         createdAt: { $gte: since },
-      });
+      };
+      if (quest.type === 'log_expenses') {
+        query.type = 'out';
+      }
+      const count = await Transaction.countDocuments(query);
       newValue = count;
     }
 
@@ -163,8 +167,8 @@ async function createExpense(req, res) {
     updatedAt: booking,
   });
 
-  // Mise à jour automatique de la progression des quêtes actives (fire-and-forget)
-  _updateQuestProgress(userId).catch(() => {});
+  // Mise à jour automatique de la progression des quêtes actives
+  await _updateQuestProgress(userId).catch(() => {});
 
   sendJson(res, 201, {
     id: doc._id.toString(),
@@ -237,6 +241,9 @@ async function updateTransaction(req, res) {
 
   await doc.save();
 
+  // Mise à jour automatique de la progression des quêtes actives
+  await _updateQuestProgress(authUserId).catch(() => {});
+
   sendJson(res, 200, {
     id: doc._id.toString(),
     title: doc.title,
@@ -267,6 +274,10 @@ async function deleteTransaction(req, res) {
   if (result.deletedCount === 0) {
     return sendJson(res, 404, { error: 'Transaction introuvable.' });
   }
+
+  // Mise à jour automatique de la progression des quêtes actives
+  await _updateQuestProgress(authUserId).catch(() => {});
+
   sendJson(res, 200, { ok: true });
 }
 
