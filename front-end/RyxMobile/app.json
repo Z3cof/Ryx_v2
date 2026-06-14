@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "Ryx",
+    "slug": "RyxMobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo_ryx.png",
+    "scheme": "ryxmobile",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/logo_ryx.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.RyxMobile",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Ryx se connecte au serveur de développement sur ton réseau local (Metro) pour charger l’app en mode debug.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            },
+            "127.0.0.1": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        }
+      }
+    },
+    "android": {
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/images/logo_ryx.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.RyxMobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logo_ryx.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ryx accède à tes photos pour définir ta photo de profil.",
+          "cameraPermission": "Ryx peut utiliser l’appareil photo pour ta photo de profil."
+        }
+      ],
+      "expo-localization",
+      "@react-native-community/datetimepicker",
+      "expo-sharing"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0462eda3-61d2-44e7-81de-09079cf8086f"
+      }
+    },
+    "owner": "z3cof"
+  }
+}
