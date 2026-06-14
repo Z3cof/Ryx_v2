@@ -75,25 +75,43 @@ async function register(req, res) {
 
 /**
  * POST /api/auth/login
- * Connecte un utilisateur (email + mot de passe).
+ * Connecte un utilisateur (phoneE164 + mot de passe, ou email + mot de passe).
  */
 async function login(req, res) {
   const body = req.body || {};
-  const { email, password } = body;
+  const { email, password, phoneE164: rawPhone } = body;
 
-  if (!email || !password) {
-    return sendJson(res, 400, { error: 'Email et mot de passe requis.' });
+  if (!password) {
+    return sendJson(res, 400, { error: 'Mot de passe requis.' });
+  }
+  if (!rawPhone && !email) {
+    return sendJson(res, 400, { error: 'Numéro de téléphone ou email requis.' });
   }
 
-  const emailNorm = String(email).trim().toLowerCase();
-  const user = await User.findOne({ email: emailNorm });
-  if (!user) {
-    return sendJson(res, 401, { error: 'Email ou mot de passe incorrect.' });
+  let user = null;
+
+  // Priorité : connexion par numéro de téléphone
+  if (rawPhone) {
+    const phoneE164 = normalizeAndValidate(rawPhone);
+    if (!phoneE164) {
+      return sendJson(res, 400, { error: 'Numéro de téléphone invalide.' });
+    }
+    user = await User.findOne({ phoneE164 });
+    if (!user) {
+      return sendJson(res, 401, { error: 'Numéro de téléphone ou mot de passe incorrect.' });
+    }
+  } else {
+    // Fallback : connexion par email
+    const emailNorm = String(email).trim().toLowerCase();
+    user = await User.findOne({ email: emailNorm });
+    if (!user) {
+      return sendJson(res, 401, { error: 'Email ou mot de passe incorrect.' });
+    }
   }
 
   const ok = await bcrypt.compare(String(password), user.password);
   if (!ok) {
-    return sendJson(res, 401, { error: 'Email ou mot de passe incorrect.' });
+    return sendJson(res, 401, { error: rawPhone ? 'Numéro de téléphone ou mot de passe incorrect.' : 'Email ou mot de passe incorrect.' });
   }
 
   const obj = user.toObject();

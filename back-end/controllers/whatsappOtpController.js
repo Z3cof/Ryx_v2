@@ -8,7 +8,6 @@ const {
   RESEND_COOLDOWN_MS,
 } = require('../utils/otpStore');
 const { sendOtpTemplate, isWhatsappMockEnabled } = require('../services/whatsappOtpSend');
-const { sendOtpEmail, isEmailOtpConfigured } = require('../services/emailSend');
 const { normalizeAndValidate } = require('../utils/phoneE164');
 const User = require('../models/User');
 
@@ -24,7 +23,7 @@ function sendJson(res, status, data) {
 
 /**
  * POST /api/auth/whatsapp-otp/validate-phone
- * Vérifie le numéro (E.164 valide), qu’il n’est pas déjà enregistré, sans envoyer d’OTP ni cooldown.
+ * Vérifie le numéro (E.164 valide), qu'il n'est pas déjà enregistré, sans envoyer d'OTP ni cooldown.
  * Body: { phoneE164 }
  */
 async function validatePhone(req, res) {
@@ -41,7 +40,8 @@ async function validatePhone(req, res) {
 
 /**
  * POST /api/auth/whatsapp-otp/send
- * Body: { phoneE164, email? } — si `email` est fourni (inscription), vérifie format + disponibilité avant l’envoi.
+ * Body: { phoneE164, email? } — si `email` est fourni (inscription), vérifie format + disponibilité avant l'envoi.
+ * L'OTP est TOUJOURS envoyé par WhatsApp (Evolution API). Pas de fallback email pour l'inscription.
  */
 async function sendOtp(req, res) {
   const phoneE164 = normalizeAndValidate(req.body?.phoneE164);
@@ -79,42 +79,24 @@ async function sendOtp(req, res) {
   setOtp(phoneE164, code);
   markSent(phoneE164);
 
+  // L'OTP est TOUJOURS envoyé par WhatsApp — pas de fallback email.
   let result;
   const digits = phoneE164.replace(/^\+/, '');
-  const forceWhatsappMock = isWhatsappMockEnabled();
-  const useEmailOtp = rawEmail && isEmailOtpConfigured() && !forceWhatsappMock;
-
-  if (useEmailOtp) {
-    try {
-      result = await sendOtpEmail(rawEmail.toLowerCase(), code);
-    } catch (e) {
-      console.error('[OTP Email]', e.message || e);
-      const payload = {
-        error: "Impossible d'envoyer le code par e-mail. Réessayez plus tard.",
-      };
-      if (process.env.EMAILJS_DEBUG === 'true' || process.env.NODE_ENV !== 'production') {
-        payload.detail = e instanceof Error ? e.message : String(e);
-      }
-      return sendJson(res, 502, payload);
+  try {
+    result = await sendOtpTemplate(digits, code);
+    if (result.mock) {
+      console.log('[OTP WhatsApp mock]', phoneE164, rawEmail ? `email=${rawEmail}` : '', 'code=', code);
     }
-  } else {
-    try {
-      result = await sendOtpTemplate(digits, code);
-      if (result.mock) {
-        const via = forceWhatsappMock && rawEmail ? 'mock (WHATSAPP_MOCK, inscription)' : 'mock';
-        console.log(`[OTP WhatsApp ${via}]`, phoneE164, rawEmail ? `email=${rawEmail}` : '', 'code=', code);
-      }
-    } catch (e) {
-      console.error('[OTP WhatsApp]', e.message || e);
-      return sendJson(res, 502, {
-        error: "Impossible d'envoyer le message WhatsApp. Réessayez plus tard.",
-      });
-    }
+  } catch (e) {
+    console.error('[OTP WhatsApp]', e.message || e);
+    return sendJson(res, 502, {
+      error: "Impossible d'envoyer le message WhatsApp. Réessayez plus tard.",
+    });
   }
 
   const body = { ok: true, mock: result.mock };
   // WHATSAPP_MOCK : exposer devOtp même en prod Render (staging sans domaine / sans Meta).
-  if (result.mock && (process.env.NODE_ENV !== 'production' || forceWhatsappMock)) {
+  if (result.mock && (process.env.NODE_ENV !== 'production' || isWhatsappMockEnabled())) {
     body.devOtp = code;
   }
   sendJson(res, 200, body);
