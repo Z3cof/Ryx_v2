@@ -295,6 +295,14 @@ export default function ChatbotScreen() {
     setMessages((prev) => [...prev, { id: nextId(), role: 'assistant', text, createdAt: Date.now() }]);
   }, []);
 
+  useEffect(() => {
+    console.log('[Ryx Chatbot] Screen loaded with parameters:', {
+      userMongoId,
+      displayName,
+      params,
+    });
+  }, [userMongoId, displayName, params]);
+
   const handleSend = useCallback(
     async (text?: string) => {
       const raw = (text ?? input).trim();
@@ -303,6 +311,12 @@ export default function ChatbotScreen() {
       const historyBefore = messages;
       setMessages((prev) => [...prev, { id: nextId(), role: 'user', text: raw, createdAt: Date.now() }]);
       setSending(true);
+      console.log('[Ryx Chatbot] Sending chat message to backend/AI service:', {
+        raw,
+        userMongoId,
+        displayName,
+        locale,
+      });
       try {
         const reply = await sendChatMessage(raw, locale, {
           history: historyBefore,

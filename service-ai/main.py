@@ -384,12 +384,18 @@ async def chat(
 
     _ensure_gemini_configured()
 
+    print(f"[Ryx AI] /chat called. user_mongo_id: '{req.user_mongo_id}', user_name: '{req.user_name}', locale: '{req.locale}'")
     system_prompt = build_system_prompt(req.locale, req.user_name)
     uid = (req.user_mongo_id or "").strip()
     if uid:
         ctx = await run_in_threadpool(build_user_finance_context, uid, req.locale)
         if ctx:
             system_prompt = f"{ctx}\n{system_prompt}"
+            print(f"[Ryx AI] Context successfully attached. Prompt length: {len(system_prompt)}")
+        else:
+            print("[Ryx AI] Context returned empty string.")
+    else:
+        print("[Ryx AI] No user_mongo_id provided in request.")
 
     generation_config = {
         "temperature": 0.3,

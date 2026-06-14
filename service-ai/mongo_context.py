@@ -28,9 +28,12 @@ def _get_client() -> Optional[MongoClient]:
 
 
 def _default_db(client: MongoClient):
-    db = client.get_default_database()
-    if db is not None:
-        return db
+    try:
+        db = client.get_default_database()
+        if db is not None:
+            return db
+    except Exception as e:
+        print(f"[Ryx AI] get_default_database configuration error: {e}")
     name = (os.getenv("MONGO_DB_NAME") or "ryxdb").strip() or "ryxdb"
     return client[name]
 
@@ -56,17 +59,21 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
     """
     Résumé financier + profil pour le prompt (aucune donnée si URI absente ou erreur).
     """
+    print(f"[Ryx AI] build_user_finance_context called for user_mongo_id: '{user_mongo_id}'")
     try:
         oid = ObjectId(user_mongo_id.strip())
-    except InvalidId:
+    except InvalidId as e:
+        print(f"[Ryx AI] Invalid user ID: '{user_mongo_id}' (error: {e})")
         return ""
 
     client = _get_client()
     if not client:
+        print("[Ryx AI] No MongoClient found (MONGO_URI empty)")
         return ""
 
     try:
         db = _default_db(client)
+        print(f"[Ryx AI] Connected to DB: '{db.name}'")
         users = db["users"]
         transactions = db["transactions"]
         recurring = db["recurringrules"]
@@ -81,7 +88,10 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
             projection={"name": 1, "isMerchant": 1, "countryIso": 1},
         )
         if not user:
+            print(f"[Ryx AI] User '{user_mongo_id}' not found in DB '{db.name}'")
             return ""
+        print(f"[Ryx AI] Found user: '{user.get('name')}' in DB")
+
 
         now = datetime.now(timezone.utc)
         start_month = _month_start(now)
@@ -304,6 +314,8 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
         ]
         return "".join(p for p in parts if p)
 
-    except PyMongoError as e:
-        log.warning("Mongo context skip: %s", e)
+    except Exception as e:
+        print(f"[Ryx AI] Exception building user finance context: {e}")
+        import traceback
+        traceback.print_exc()
         return ""
