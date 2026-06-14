@@ -203,6 +203,8 @@ def build_system_prompt(locale: str, user_name: Optional[str]) -> str:
         base += (
             " If the user asks for actions in the app (add expense, see budget, become a vendor, etc.), "
             "explain step by step where to tap in the UI instead of pretending to perform the action."
+            " IMPORTANT: Do NOT use markdown bold syntax (like **text** or *text*) in your response. Instead, "
+            "structure your response using plain text spacing, lists (-), and emojis."
         )
         return base + _app_guide("en") + _advice_rules("en")
 
@@ -228,6 +230,8 @@ def build_system_prompt(locale: str, user_name: Optional[str]) -> str:
     base += (
         " Si l'utilisateur te demande de faire une action dans l'app (ajouter une dépense, voir le budget, "
         "devenir vendeur, etc.), explique-lui pas à pas où appuyer dans l'interface au lieu de prétendre le faire."
+        " IMPORTANT : N'utilise jamais de mise en forme Markdown comme les doubles astérisques (**texte**) ou simples astérisques (*texte*). "
+        "Structure tes réponses pour qu'elles soient aérées et lisibles en utilisant des listes à puces simples (-), des retours à la ligne et des emojis."
     )
     return base + _app_guide("fr") + _advice_rules("fr")
 
@@ -453,7 +457,9 @@ async def chat(
         if not reply:
             raise HTTPException(status_code=502, detail="Réponse Gemini vide ou bloquée.")
 
-        return ChatResponse(reply=reply)
+        # Nettoyer les astérisques du markdown pour des réponses propres sans **
+        clean_reply = reply.replace("**", "").replace("*", "")
+        return ChatResponse(reply=clean_reply)
 
     if last_err:
         raise HTTPException(status_code=429, detail=str(last_err)) from last_err
