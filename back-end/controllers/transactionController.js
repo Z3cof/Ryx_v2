@@ -24,6 +24,90 @@ function parseBookingDate(raw) {
 }
 
 /**
+ * Met à jour automatiquement la progression des quêtes actives de l'utilisateur
+ * après chaque transaction.
+ *
+ * Quêtes mises à jour :
+ *   - log_expenses  → currentValue = nb de transactions dans la fenêtre d'expiration
+ *   - first_action  → currentValue = 1 (débloqué dès la 1ère transaction)
+ *   - limit_category → currentValue = total dépensé dans la catégorie ce mois
+ *   - save_amount   → currentValue = total des revenus (type 'in') ce mois
+ */
+async function _updateQuestProgress(userId) {
+  // Import ici pour éviter la circularité au niveau module
+  const Quest = require('../models/Quest');
+
+  const activeQuests = await Quest.find({ userId, status: 'active' });
+  if (activeQuests.length === 0) return;
+
+  const now = new Date();
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  // Début de semaine lundi
+  const dayOfWeek = now.getUTCDay(); // 0=dim, 1=lun ...
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const startOfWeek = new Date(now);
+  startOfWeek.setUTCDate(now.getUTCDate() - daysToMonday);
+  startOfWeek.setUTCHours(0, 0, 0, 0);
+
+  for (const quest of activeQuests) {
+    // Ignorer les quêtes expirées
+    if (quest.expiresAt && quest.expiresAt < now) {
+      quest.status = 'expired';
+      await quest.save();
+      continue;
+    }
+
+    let newValue = quest.currentValue;
+
+    if (quest.type === 'log_expenses' || quest.type === 'first_action') {
+      // Fenêtre de temps : cette semaine pour log_expenses, tout le temps pour first_action
+      const since = quest.type === 'first_action' ? new Date(0) : startOfWeek;
+      const count = await Transaction.countDocuments({
+        userId,
+        createdAt: { $gte: since },
+      });
+      newValue = count;
+    }
+
+    else if (quest.type === 'limit_category' && quest.targetCategory) {
+      // Total dépensé dans la catégorie ce mois (valeurs négatives = dépenses)
+      const agg = await Transaction.aggregate([
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(userId),
+            type: 'out',
+            category: quest.targetCategory,
+            createdAt: { $gte: startOfMonth },
+          },
+        },
+        { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } },
+      ]);
+      newValue = agg[0]?.total ?? 0;
+    }
+
+    else if (quest.type === 'save_amount') {
+      // Total des revenus ce mois
+      const agg = await Transaction.aggregate([
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(userId),
+            type: 'in',
+            createdAt: { $gte: startOfMonth },
+          },
+        },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+      ]);
+      newValue = agg[0]?.total ?? 0;
+    }
+
+    if (newValue !== quest.currentValue) {
+      quest.currentValue = newValue;
+      await quest.save();
+    }
+  }
+}
+
+/**
  * POST /api/transactions
  * Body: { userId, title, amount, currency?, category?, description?, type?, date? }
  * date: optionnel, ISO ou YYYY-MM-DD (jour de l’opération).
@@ -78,6 +162,9 @@ async function createExpense(req, res) {
     createdAt: booking,
     updatedAt: booking,
   });
+
+  // Mise à jour automatique de la progression des quêtes actives (fire-and-forget)
+  _updateQuestProgress(userId).catch(() => {});
 
   sendJson(res, 201, {
     id: doc._id.toString(),

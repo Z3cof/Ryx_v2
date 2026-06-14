@@ -1,6 +1,7 @@
 const Quest = require('../models/Quest');
 const UserProgress = require('../models/UserProgress');
 const Transaction = require('../models/Transaction');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 
 function sendJson(res, status, data) {
@@ -45,6 +46,66 @@ const STARTER_QUESTS = [
 ];
 
 /**
+ * Re-synchronise currentValue de toutes les quêtes actives d'un utilisateur
+ * en fonction de ses transactions réelles. Appelée à chaque GET /api/quests/:userId.
+ */
+async function _syncQuestProgress(userId) {
+  const activeQuests = await Quest.find({ userId, status: 'active' });
+  if (activeQuests.length === 0) return;
+
+  const now = new Date();
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  // Semaine débutant le lundi
+  const dayOfWeek = now.getUTCDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const startOfWeek = new Date(now);
+  startOfWeek.setUTCDate(now.getUTCDate() - daysToMonday);
+  startOfWeek.setUTCHours(0, 0, 0, 0);
+
+  const userOid = mongoose.Types.ObjectId.isValid(userId)
+    ? new mongoose.Types.ObjectId(userId)
+    : null;
+
+  for (const quest of activeQuests) {
+    if (quest.expiresAt && quest.expiresAt < now) {
+      quest.status = 'expired';
+      await quest.save();
+      continue;
+    }
+
+    let newValue = quest.currentValue;
+
+    if (quest.type === 'log_expenses' || quest.type === 'first_action') {
+      const since = quest.type === 'first_action' ? new Date(0) : startOfWeek;
+      newValue = await Transaction.countDocuments({ userId, createdAt: { $gte: since } });
+    }
+    else if (quest.type === 'limit_category' && quest.targetCategory) {
+      if (userOid) {
+        const agg = await Transaction.aggregate([
+          { $match: { userId: userOid, type: 'out', category: quest.targetCategory, createdAt: { $gte: startOfMonth } } },
+          { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } },
+        ]);
+        newValue = agg[0]?.total ?? 0;
+      }
+    }
+    else if (quest.type === 'save_amount') {
+      if (userOid) {
+        const agg = await Transaction.aggregate([
+          { $match: { userId: userOid, type: 'in', createdAt: { $gte: startOfMonth } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } },
+        ]);
+        newValue = agg[0]?.total ?? 0;
+      }
+    }
+
+    if (newValue !== quest.currentValue) {
+      quest.currentValue = newValue;
+      await quest.save();
+    }
+  }
+}
+
+/**
  * GET /api/quests/:userId
  * Retourne les quêtes actives + la progression de l'utilisateur.
  */
@@ -57,15 +118,20 @@ async function listQuests(req, res) {
     progress = await UserProgress.create({ userId });
   }
 
-  // Quêtes actives
-  let activeQuests = await Quest.find({ userId, status: 'active' }).sort({ createdAt: -1 }).lean();
+  // Quêtes actives — initialiser si besoin
+  let activeQuests = await Quest.find({ userId, status: 'active' }).sort({ createdAt: -1 });
 
-  // Si aucune quête active → créer les quêtes de départ
   if (activeQuests.length === 0) {
     const starters = STARTER_QUESTS.map((q) => ({ ...q, userId }));
     const created = await Quest.insertMany(starters);
-    activeQuests = created.map((q) => q.toObject());
+    activeQuests = created;
   }
+
+  // Synchroniser la progression en temps réel
+  await _syncQuestProgress(userId);
+
+  // Recharger après sync pour avoir les valeurs à jour
+  activeQuests = await Quest.find({ userId, status: 'active' }).sort({ createdAt: -1 }).lean();
 
   // Quêtes récemment complétées (7 derniers jours)
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
