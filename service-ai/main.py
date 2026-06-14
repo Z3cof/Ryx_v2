@@ -290,12 +290,12 @@ def _is_in_scope(text: str, prior_user_messages: Optional[List[str]] = None) -> 
 def _out_of_scope_reply(locale: str) -> str:
     if locale == "en":
         return (
-            "I only help with your finances and the Ryx app (expenses, income, balance, budget, projects, shop). "
+            "I only help with your finances and the Ryx app (expenses, income, balance, budget, projects, RyxQuest). "
             "You can also ask purchase advice tied to your budget (e.g. what car fits my means). "
             "Ask me something in that scope."
         )
     return (
-        "Je réponds sur tes finances et l’app Ryx (dépenses, entrées, solde, budget, projets, boutique). "
+        "Je réponds sur tes finances et l’app Ryx (dépenses, entrées, solde, budget, projets, RyxQuest). "
         "Tu peux aussi demander un avis d’achat lié à ton budget (ex. quelle voiture selon mes moyens). "
         "Pose-moi une question dans ce périmètre."
     )
