@@ -6,9 +6,7 @@ const { normalizeAndValidate } = require('../utils/phoneE164');
 const { consumeRegisterToken } = require('../utils/otpStore');
 const Transaction = require('../models/Transaction');
 const RecurringRule = require('../models/RecurringRule');
-const ShopOrder = require('../models/ShopOrder');
-const Product = require('../models/Product');
-const Sale = require('../models/Sale');
+const UserProgress = require('../models/UserProgress');
 const MonthlyBalance = require('../models/MonthlyBalance');
 const MonthlyBudget = require('../models/MonthlyBudget');
 const Wallet = require('../models/Wallet');
@@ -183,7 +181,7 @@ async function changePassword(req, res) {
 /**
  * DELETE /api/users/:userId
  * Body: { password: string } — mot de passe actuel pour confirmer.
- * Supprime l’utilisateur et les données associées (transactions, boutique, règles, etc.).
+ * Supprime l'utilisateur et les données associées (transactions, quêtes, règles, etc.).
  */
 async function deleteAccount(req, res) {
   const { userId } = req.params;
@@ -209,14 +207,12 @@ async function deleteAccount(req, res) {
   const oid = new mongoose.Types.ObjectId(userId);
 
   try {
-    await ShopOrder.deleteMany({ merchantId: oid });
     await Transaction.deleteMany({ userId: oid });
-    await Product.deleteMany({ userId: oid });
-    await Sale.deleteMany({ user: oid });
     await RecurringRule.deleteMany({ userId: oid });
     await MonthlyBalance.deleteMany({ userId: oid });
     await MonthlyBudget.deleteMany({ userId: oid });
     await Wallet.deleteMany({ userId: oid });
+    await UserProgress.deleteMany({ userId: oid });
 
     const result = await User.deleteOne({ _id: oid });
     if (result.deletedCount === 0) {

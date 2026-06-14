@@ -2,13 +2,11 @@
 
 
 const mongoose = require('mongoose');
-const { seedProductCategories } = require('../services/seedProductCategories');
 
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI); // plus d’options ici
     console.log(`MongoDB connected: ${conn.connection.host}`);
-    await seedProductCategories();
   } catch (error) {
     const isRefused = /ECONNREFUSED|connect ECONNREFUSED/.test(error.message);
     console.error(`Erreur de connexion à la base de données: ${error.message}`);

@@ -10,7 +10,7 @@ const expensesRoutes = require('./routes/expenses');
 const balanceRoutes = require('./routes/balance');
 const userRoutes = require('./routes/users');
 const recurringRoutes = require('./routes/recurring');
-const shopRoutes = require('./routes/shop');
+const questRoutes = require('./routes/quests');
 const projectRoutes = require('./routes/projects');
 
 // override: false → les variables déjà définies (ex: Render env vars) ont la priorité sur le .env local
@@ -96,7 +96,7 @@ app.use('/api/balance', balanceRoutes);
 app.use('/api/monthly-balance', balanceRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/recurring', recurringRoutes);
-app.use('/api/shop', shopRoutes);
+app.use('/api/quests', questRoutes);
 app.use('/api/projects', projectRoutes);
 
 app.use((req, res) => {

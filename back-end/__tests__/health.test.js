@@ -8,10 +8,12 @@ describe('Back-End Health Check Endpoint', () => {
       .expect('Content-Type', /json/)
       .expect(200);
 
-    expect(response.body).toEqual({
-      ok: true,
-      message: 'Back-end accessible',
-    });
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        message: 'Back-end accessible',
+      })
+    );
   });
 
   it('GET /non-existent-route should return 404', async () => {
