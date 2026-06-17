@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-from mongo_context import build_user_finance_context
+from mongo_context import build_user_finance_context, test_mongo_connection
 
 load_dotenv()
 
@@ -160,7 +160,10 @@ def _advice_rules(locale: str) -> str:
     if locale == "en":
         return (
             "\n\nPERSONALIZED ADVICE:\n"
-            "- When user data is provided above, use real numbers (XOF); never invent transactions.\n"
+            "- When the « Ryx user data » block is present above, you HAVE access to this user's finances — "
+            "quote those numbers directly; never say you lack access or cannot see their data.\n"
+            "- When that block is absent, say clearly that personalized numbers are unavailable (not connected "
+            "or server not linked to MongoDB) and give prudent general guidance.\n"
             "- Compare income, spending cap, recurring commitments, and net before big purchases.\n"
             "- For cars/housing/equipment: give 2–3 realistic options (budget / mid / stretch), "
             "monthly cost estimate, and a clear recommendation (wait / cautious / ok) with reasons.\n"
@@ -169,12 +172,82 @@ def _advice_rules(locale: str) -> str:
         )
     return (
         "\n\nCONSEILS PERSONNALISÉS :\n"
-        "- Quand des données utilisateur sont fournies ci-dessus, utilise les vrais chiffres (XOF) ; n’invente pas d’opérations.\n"
+        "- Quand le bloc « Données Ryx » est présent ci-dessus, tu AS accès aux finances de l'utilisateur — "
+        "cite ces chiffres directement ; ne dis jamais que tu n'as pas accès ou que tu ne vois pas ses données.\n"
+        "- Quand ce bloc est absent, dis clairement que les chiffres personnalisés ne sont pas disponibles "
+        "(compte non relié ou serveur IA non connecté à MongoDB) et donne des conseils généraux prudents.\n"
         "- Compare entrées, plafond du mois, récurrents et net avant un gros achat.\n"
         "- Voiture / logement / équipement : propose 2–3 options réalistes (économique / milieu / limite), "
         "coût mensuel estimé, et une recommandation claire (attendre / prudent / ok) avec raisons.\n"
         "- Si données insuffisantes, dis ce qu’il manque et donne des règles prudentes (réserve, priorité dettes).\n"
         "- Ton bienveillant ; pas de jugement ; conseils actionnables en puces.\n"
+    )
+
+
+def _data_access_note(locale: str, user_mongo_id: str, context_loaded: bool) -> str:
+    """Consigne explicite pour que le modèle sache s'il a les chiffres réels ou non."""
+    uid = (user_mongo_id or "").strip()
+    mongo_on = bool(os.getenv("MONGO_URI", "").strip())
+
+    if context_loaded:
+        if locale == "en":
+            return (
+                "--- DATA ACCESS (mandatory) ---\n"
+                "The « Ryx user data » block below is LIVE data for this user only. "
+                "You MUST use it in your answers (amounts, categories, budget). "
+                "Never claim you cannot access their finances when this block is present.\n"
+            )
+        return (
+            "--- ACCÈS DONNÉES (obligatoire) ---\n"
+            "Le bloc « Données Ryx » ci-dessous contient les VRAIS chiffres de cet utilisateur. "
+            "Tu DOIS t'en servir dans tes réponses (montants, catégories, budget). "
+            "Ne prétends jamais ne pas avoir accès à ses finances tant que ce bloc est présent.\n"
+        )
+
+    if not uid:
+        if locale == "en":
+            return (
+                "--- DATA ACCESS ---\n"
+                "No user_mongo_id was sent — you do NOT have personalized numbers. "
+                "Tell the user to sign in and reopen the assistant from the app; "
+                "still help with general budgeting and app navigation.\n"
+            )
+        return (
+            "--- ACCÈS DONNÉES ---\n"
+            "Aucun user_mongo_id reçu — tu n'as PAS les chiffres personnalisés. "
+            "Indique à l'utilisateur de se connecter et rouvrir l'assistant depuis l'app ; "
+            "aide quand même sur le budget en général et la navigation dans Ryx.\n"
+        )
+
+    if not mongo_on:
+        if locale == "en":
+            return (
+                "--- DATA ACCESS ---\n"
+                "user_mongo_id was sent but MONGO_URI is not configured on the AI service — "
+                "personalized data could not be loaded. Explain that the admin must set MONGO_URI in "
+                "service-ai/.env (same as the Node back-end), then restart service-ai. "
+                "Give general prudent advice until then.\n"
+            )
+        return (
+            "--- ACCÈS DONNÉES ---\n"
+            "user_mongo_id reçu mais MONGO_URI n'est pas configuré sur le service IA — "
+            "les données personnalisées n'ont pas pu être chargées. Explique qu'il faut définir MONGO_URI "
+            "dans service-ai/.env (même valeur que le back-end Node), puis redémarrer service-ai. "
+            "Donne des conseils généraux prudents en attendant.\n"
+        )
+
+    if locale == "en":
+        return (
+            "--- DATA ACCESS ---\n"
+            "user_mongo_id was sent and MongoDB is configured, but this user's data could not be loaded "
+            "(unknown account or DB error). Say you cannot show their numbers right now; "
+            "suggest checking they are logged into the right account.\n"
+        )
+    return (
+        "--- ACCÈS DONNÉES ---\n"
+        "user_mongo_id reçu et MongoDB configuré, mais les données de cet utilisateur n'ont pas pu être chargées "
+        "(compte inconnu ou erreur base). Dis que tu ne peux pas afficher ses chiffres pour l'instant ; "
+        "propose de vérifier qu'il est connecté au bon compte.\n"
     )
 
 
@@ -385,17 +458,23 @@ async def chat(
     _ensure_gemini_configured()
 
     print(f"[Ryx AI] /chat called. user_mongo_id: '{req.user_mongo_id}', user_name: '{req.user_name}', locale: '{req.locale}'")
-    system_prompt = build_system_prompt(req.locale, req.user_name)
     uid = (req.user_mongo_id or "").strip()
+    ctx = ""
     if uid:
         ctx = await run_in_threadpool(build_user_finance_context, uid, req.locale)
         if ctx:
-            system_prompt = f"{ctx}\n{system_prompt}"
-            print(f"[Ryx AI] Context successfully attached. Prompt length: {len(system_prompt)}")
+            print(f"[Ryx AI] Context successfully attached. Prompt length: {len(ctx)} chars")
         else:
             print("[Ryx AI] Context returned empty string.")
     else:
         print("[Ryx AI] No user_mongo_id provided in request.")
+
+    data_note = _data_access_note(req.locale, uid, bool(ctx))
+    system_prompt = build_system_prompt(req.locale, req.user_name)
+    if ctx:
+        system_prompt = f"{data_note}\n{ctx}\n{system_prompt}"
+    else:
+        system_prompt = f"{data_note}\n{system_prompt}"
 
     generation_config = {
         "temperature": 0.3,
@@ -474,14 +553,15 @@ async def chat(
 
 @app.get("/health")
 async def health() -> dict:
-    mongo_on = bool(os.getenv("MONGO_URI", "").strip())
+    mongo_status = await run_in_threadpool(test_mongo_connection)
     return {
         "status": "ok" if GEMINI_API_KEY else "degraded",
         "gemini_configured": bool(GEMINI_API_KEY),
         "model": MODEL_NAME,
         "models_try_order": MODELS_TO_TRY,
         "provider": "google-gemini",
-        "mongo_context": mongo_on,
+        "mongo_context": mongo_status.get("connected", False),
+        "mongo_details": mongo_status,
         "ai_secret_required": bool(RYX_AI_SERVICE_SECRET),
         "port": int(os.getenv("PORT", "8082")),
     }

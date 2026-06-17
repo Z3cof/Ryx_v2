@@ -319,3 +319,27 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
         import traceback
         traceback.print_exc()
         return ""
+
+
+def test_mongo_connection() -> dict:
+    uri = os.getenv("MONGO_URI", "").strip()
+    if not uri:
+        return {"configured": False, "connected": False, "error": "MONGO_URI env var is empty"}
+    try:
+        # Short timeout to avoid blocking the health endpoint if it is down
+        client = MongoClient(uri, serverSelectionTimeoutMS=2000)
+        client.admin.command('ping')
+        db = _default_db(client)
+        user_count = db["users"].count_documents({})
+        return {
+            "configured": True,
+            "connected": True,
+            "database": db.name,
+            "user_count": user_count
+        }
+    except Exception as e:
+        return {
+            "configured": True,
+            "connected": False,
+            "error": str(e)
+        }

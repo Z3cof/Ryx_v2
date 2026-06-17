@@ -20,6 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AI_SERVICE_BASE_URL } from '../../config/api';
 import { sendChatMessage, type ChatMessage } from '../../services/chatbot';
+import { fetchSessionUser } from '../../services/auth';
+import { getAuthToken } from '../../services/authSession';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -225,8 +227,12 @@ function makeChatbotStyles(
 export default function ChatbotScreen() {
   const params = useLocalSearchParams<{ userId?: string; userName?: string }>();
   const insets = useSafeAreaInsets();
-  const displayName = params.userName?.trim() || '';
-  const userMongoId = params.userId?.trim() || '';
+  const paramUserId = params.userId?.trim() || '';
+  const paramUserName = params.userName?.trim() || '';
+  const [resolvedUserId, setResolvedUserId] = useState(paramUserId);
+  const [resolvedUserName, setResolvedUserName] = useState(paramUserName);
+  const displayName = resolvedUserName || paramUserName;
+  const userMongoId = resolvedUserId || paramUserId;
   const { ui, colors, primary, spacing, radius, fontSize } = useAppTheme();
   const { t, locale } = useTranslation();
   const screenWidth = Dimensions.get('window').width;
@@ -255,6 +261,30 @@ export default function ChatbotScreen() {
   const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    if (paramUserId) {
+      setResolvedUserId(paramUserId);
+      if (paramUserName) setResolvedUserName(paramUserName);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        if (!token || cancelled) return;
+        const { user } = await fetchSessionUser();
+        if (cancelled) return;
+        setResolvedUserId(user._id);
+        setResolvedUserName(user.name?.trim() || '');
+      } catch {
+        /* session invalide ou hors ligne */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [paramUserId, paramUserName]);
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
