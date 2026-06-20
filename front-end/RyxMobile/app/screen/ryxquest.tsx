@@ -34,6 +34,7 @@ import {
   type Quest,
   type UserQuestProgress,
 } from '../../services/quests';
+import { getCachedData } from '../../services/offlineStorage';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = SCREEN_W - 40;
@@ -148,6 +149,21 @@ export default function RyxQuestScreen() {
   const loadData = useCallback(
     async (silent = false) => {
       if (!userId) return;
+
+      // Try loading from cache immediately so it's already ready
+      try {
+        const cached = await getCachedData<{ quests: Quest[]; recentCompleted: Quest[]; progress: UserQuestProgress }>(
+          `cached_quests_${userId}`
+        );
+        if (cached) {
+          setQuests(cached.quests || []);
+          setRecentCompleted(cached.recentCompleted || []);
+          setProgress(cached.progress || null);
+        }
+      } catch (err) {
+        // ignore
+      }
+
       if (!silent) setLoading(true);
       try {
         const res = await fetchQuests(userId);
@@ -240,14 +256,6 @@ export default function RyxQuestScreen() {
   const SUB  = isDark ? '#94a3b8' : '#6b7280';
   const ACCENT = '#f59e0b';
 
-  if (loading && !progress) {
-    return (
-      <View style={[styles.root, { backgroundColor: BG }]}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-        <RyxLoader fullScreen />
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.root, { backgroundColor: BG }]}>
@@ -257,7 +265,11 @@ export default function RyxQuestScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
           onPress={goBack}
-          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [
+            styles.backBtn,
+            { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' },
+            { opacity: pressed ? 0.6 : 1 }
+          ]}
         >
           <Ionicons name="chevron-back" size={20} color={TEXT} />
         </Pressable>
@@ -296,224 +308,232 @@ export default function RyxQuestScreen() {
           </View>
         )}
 
-        {/* ── Quest cards (horizontal swiper) ──────────────────────── */}
-        {quests.length > 0 ? (
+        {loading && !progress ? (
+          <View style={{ paddingVertical: 60, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="large" color={ACCENT} />
+          </View>
+        ) : (
           <>
-            <FlatList
-              data={quests}
-              horizontal
-              pagingEnabled
-              snapToInterval={CARD_W + 16}
-              decelerationRate="fast"
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
-              keyExtractor={(q) => q._id}
-              onViewableItemsChanged={onViewableChanged}
-              viewabilityConfig={viewConfig.current}
-              renderItem={({ item: q }) => {
-                const pct =
-                  q.targetValue > 0
-                    ? Math.min(100, Math.round((q.currentValue / q.targetValue) * 100))
-                    : 0;
-                const isReady = pct >= 100;
-                const isAutoComp = autoCompleting.has(q._id);
-                const diff = DIFF_COLORS[q.difficulty] ?? DIFF_COLORS.easy;
+            {/* ── Quest cards (horizontal swiper) ──────────────────────── */}
+            {quests.length > 0 ? (
+              <>
+                <FlatList
+                  data={quests}
+                  horizontal
+                  pagingEnabled
+                  snapToInterval={CARD_W + 16}
+                  decelerationRate="fast"
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
+                  keyExtractor={(q) => q._id}
+                  onViewableItemsChanged={onViewableChanged}
+                  viewabilityConfig={viewConfig.current}
+                  renderItem={({ item: q }) => {
+                    const pct =
+                      q.targetValue > 0
+                        ? Math.min(100, Math.round((q.currentValue / q.targetValue) * 100))
+                        : 0;
+                    const isReady = pct >= 100;
+                    const isAutoComp = autoCompleting.has(q._id);
+                    const diff = DIFF_COLORS[q.difficulty] ?? DIFF_COLORS.easy;
 
-                return (
-                  <View style={[styles.questCard, { backgroundColor: CARD, width: CARD_W }]}>
-                    {/* AI badge */}
-                    {q.generatedByAi && (
-                      <View style={styles.aiChip}>
-                        <Ionicons name="sparkles" size={10} color="#7c3aed" />
-                        <Text style={styles.aiChipText}>Généré par Rixy</Text>
-                      </View>
-                    )}
+                    return (
+                      <View style={[styles.questCard, { backgroundColor: CARD, width: CARD_W }]}>
+                        {/* AI badge */}
+                        {q.generatedByAi && (
+                          <View style={styles.aiChip}>
+                            <Ionicons name="sparkles" size={10} color="#7c3aed" />
+                            <Text style={styles.aiChipText}>Généré par Rixy</Text>
+                          </View>
+                        )}
 
-                    {/* Gauge */}
-                    <View style={styles.gaugeWrap}>
-                      <GaugeArc percent={pct} />
-                      <View style={styles.gaugeCenter}>
-                        <Text style={[styles.gaugeNum, { color: TEXT }]}>{pct}</Text>
-                        <Text style={[styles.gaugeSub, { color: SUB }]}>%</Text>
+                        {/* Gauge */}
+                        <View style={styles.gaugeWrap}>
+                          <GaugeArc percent={pct} />
+                          <View style={styles.gaugeCenter}>
+                            <Text style={[styles.gaugeNum, { color: TEXT }]}>{pct}</Text>
+                            <Text style={[styles.gaugeSub, { color: SUB }]}>%</Text>
+                          </View>
+                        </View>
+
+                        {/* Icon + title */}
+                        <Text style={styles.questEmoji}>{q.icon || '⚡'}</Text>
+                        <Text style={[styles.questTitle, { color: TEXT }]}>{q.title}</Text>
+
+                        {/* Stats row */}
+                        <View style={styles.statsRow}>
+                          <View style={[styles.badge, { backgroundColor: diff.bg }]}>
+                            <Text style={[styles.badgeText, { color: diff.text }]}>{diff.label}</Text>
+                          </View>
+                          <View style={[styles.badge, { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : '#fef3c7' }]}>
+                            <Ionicons name="flash" size={11} color={ACCENT} />
+                            <Text style={[styles.badgeText, { color: ACCENT }]}>+{q.xpReward} XP</Text>
+                          </View>
+                          {q.expiresAt && (
+                            <View style={[styles.badge, { backgroundColor: isDark ? 'rgba(100,116,139,0.2)' : '#f1f5f9' }]}>
+                              <Ionicons name="time-outline" size={11} color={SUB} />
+                              <Text style={[styles.badgeText, { color: SUB }]}>
+                                {Math.max(0, Math.ceil((new Date(q.expiresAt).getTime() - Date.now()) / 86400000))}j
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Description */}
+                        <Text style={[styles.questDesc, { color: SUB }]}>{q.description}</Text>
+
+                        {/* Progress bar (non first_action) */}
+                        {q.type !== 'first_action' && (
+                          <View style={styles.barSection}>
+                            <View style={[styles.barBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb' }]}>
+                              <View style={[styles.barFill, { width: `${pct}%` }]} />
+                            </View>
+                            <View style={styles.barLabels}>
+                              <Text style={[styles.barText, { color: SUB }]}>
+                                {q.currentValue.toLocaleString('fr-FR')}
+                                {q.type === 'limit_category' || q.type === 'save_amount' ? ' FCFA' : 'x'}
+                              </Text>
+                              <Text style={[styles.barText, { color: SUB }]}>
+                                {q.targetValue.toLocaleString('fr-FR')}
+                                {q.type === 'limit_category' || q.type === 'save_amount' ? ' FCFA' : 'x'}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {/* CTA */}
+                        <View style={[
+                          styles.ctaBtn,
+                          { backgroundColor: isReady ? '#0f172a' : isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb' },
+                        ]}>
+                          {isAutoComp ? (
+                            <ActivityIndicator size="small" color={isReady ? '#fff' : SUB} />
+                          ) : isReady ? (
+                            <>
+                              <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                              <Text style={styles.ctaBtnText}>Validation automatique en cours…</Text>
+                            </>
+                          ) : (
+                            <>
+                              <Ionicons name="hourglass-outline" size={16} color={SUB} />
+                              <Text style={[styles.ctaBtnText, { color: SUB }]}>En cours…</Text>
+                            </>
+                          )}
+                        </View>
                       </View>
+                    );
+                  }}
+                />
+
+                {/* Pagination dots */}
+                {quests.length > 1 && (
+                  <View style={styles.dots}>
+                    {quests.map((_, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.dot,
+                          { backgroundColor: i === activeIdx ? TEXT : (isDark ? '#334155' : '#d1d5db') },
+                          i === activeIdx && styles.dotActive,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={[styles.emptyCard, { backgroundColor: CARD }]}>
+                <Text style={{ fontSize: 44, marginBottom: 12 }}>{isCooldownActive ? '🏆' : '⚡'}</Text>
+                <Text style={[styles.emptyTitle, { color: TEXT }]}>
+                  {isCooldownActive ? 'Félicitations !' : 'Aucun défi actif'}
+                </Text>
+                <Text style={[styles.emptySub, { color: SUB }]}>
+                  {isCooldownActive
+                    ? "Tu as accompli toutes tes quêtes. Rixy prépare de nouveaux défis personnalisés pour toi."
+                    : "Rixy peut générer des défis financiers intelligents adaptés à tes habitudes !"}
+                </Text>
+              </View>
+            )}
+
+            {/* ── Generate CTA (manuel si besoin de quêtes supplémentaires) ─ */}
+            {quests.length < 5 && (
+              isCooldownActive && progress?.nextQuestGenerationAt ? (
+                <View
+                  style={[
+                    styles.generateBtn,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb',
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#d1d5db',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="hourglass-outline"
+                    size={18}
+                    color={isDark ? '#94a3b8' : '#6b7280'}
+                  />
+                  <Text style={[styles.generateBtnText, { color: isDark ? '#94a3b8' : '#6b7280' }]}>
+                    Nouveaux défis disponibles dans {Math.ceil(
+                      (new Date(progress.nextQuestGenerationAt).getTime() - Date.now()) /
+                        (24 * 60 * 60 * 1000)
+                    )} jour{Math.ceil(
+                      (new Date(progress.nextQuestGenerationAt).getTime() - Date.now()) /
+                        (24 * 60 * 60 * 1000)
+                    ) > 1
+                      ? 's'
+                      : ''}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [styles.generateBtn, pressed && { opacity: 0.88 }]}
+                  onPress={handleGenerate}
+                  disabled={generating}
+                >
+                  {generating ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="sparkles" size={18} color="#fff" />
+                      <Text style={styles.generateBtnText}>Générer d'autres défis avec Rixy</Text>
+                    </>
+                  )}
+                </Pressable>
+              )
+            )}
+
+            {/* ── Recently completed ────────────────────────────────────── */}
+            {recentCompleted.length > 0 && (
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: TEXT }]}>Récemment accomplis</Text>
+                {recentCompleted.map((q) => (
+                  <View key={q._id} style={[styles.completedRow, { backgroundColor: CARD }]}>
+                    <Text style={{ fontSize: 22 }}>{q.icon || '🏆'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.completedTitle, { color: TEXT }]}>{q.title}</Text>
+                      <Text style={[styles.completedDate, { color: SUB }]}>
+                        {q.completedAt
+                          ? new Date(q.completedAt).toLocaleDateString('fr-FR', {
+                              day: 'numeric', month: 'short',
+                            })
+                          : '—'}
+                      </Text>
                     </View>
-
-                    {/* Icon + title */}
-                    <Text style={styles.questEmoji}>{q.icon || '⚡'}</Text>
-                    <Text style={[styles.questTitle, { color: TEXT }]}>{q.title}</Text>
-
-                    {/* Stats row */}
-                    <View style={styles.statsRow}>
-                      <View style={[styles.badge, { backgroundColor: diff.bg }]}>
-                        <Text style={[styles.badgeText, { color: diff.text }]}>{diff.label}</Text>
-                      </View>
-                      <View style={[styles.badge, { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : '#fef3c7' }]}>
-                        <Ionicons name="flash" size={11} color={ACCENT} />
-                        <Text style={[styles.badgeText, { color: ACCENT }]}>+{q.xpReward} XP</Text>
-                      </View>
-                      {q.expiresAt && (
-                        <View style={[styles.badge, { backgroundColor: isDark ? 'rgba(100,116,139,0.2)' : '#f1f5f9' }]}>
-                          <Ionicons name="time-outline" size={11} color={SUB} />
-                          <Text style={[styles.badgeText, { color: SUB }]}>
-                            {Math.max(0, Math.ceil((new Date(q.expiresAt).getTime() - Date.now()) / 86400000))}j
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Description */}
-                    <Text style={[styles.questDesc, { color: SUB }]}>{q.description}</Text>
-
-                    {/* Progress bar (non first_action) */}
-                    {q.type !== 'first_action' && (
-                      <View style={styles.barSection}>
-                        <View style={[styles.barBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb' }]}>
-                          <View style={[styles.barFill, { width: `${pct}%` }]} />
-                        </View>
-                        <View style={styles.barLabels}>
-                          <Text style={[styles.barText, { color: SUB }]}>
-                            {q.currentValue.toLocaleString('fr-FR')}
-                            {q.type === 'limit_category' || q.type === 'save_amount' ? ' FCFA' : 'x'}
-                          </Text>
-                          <Text style={[styles.barText, { color: SUB }]}>
-                            {q.targetValue.toLocaleString('fr-FR')}
-                            {q.type === 'limit_category' || q.type === 'save_amount' ? ' FCFA' : 'x'}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {/* CTA */}
-                    <View style={[
-                      styles.ctaBtn,
-                      { backgroundColor: isReady ? '#0f172a' : isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb' },
-                    ]}>
-                      {isAutoComp ? (
-                        <ActivityIndicator size="small" color={isReady ? '#fff' : SUB} />
-                      ) : isReady ? (
-                        <>
-                          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                          <Text style={styles.ctaBtnText}>Validation automatique en cours…</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Ionicons name="hourglass-outline" size={16} color={SUB} />
-                          <Text style={[styles.ctaBtnText, { color: SUB }]}>En cours…</Text>
-                        </>
-                      )}
+                    <View style={styles.xpBadge}>
+                      <Ionicons name="checkmark-done" size={12} color="#10b981" />
+                      <Text style={styles.xpBadgeText}>+{q.xpReward} XP</Text>
                     </View>
                   </View>
-                );
-              }}
-            />
-
-            {/* Pagination dots */}
-            {quests.length > 1 && (
-              <View style={styles.dots}>
-                {quests.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.dot,
-                      { backgroundColor: i === activeIdx ? TEXT : (isDark ? '#334155' : '#d1d5db') },
-                      i === activeIdx && styles.dotActive,
-                    ]}
-                  />
                 ))}
               </View>
             )}
+
+            <Text style={[styles.disclaimer, { color: SUB }]}>
+              Rixy génère automatiquement de nouveaux défis quand tu en termines un. Tu peux aussi en demander manuellement ci-dessus.
+            </Text>
           </>
-        ) : (
-          <View style={[styles.emptyCard, { backgroundColor: CARD }]}>
-            <Text style={{ fontSize: 44, marginBottom: 12 }}>{isCooldownActive ? '🏆' : '⚡'}</Text>
-            <Text style={[styles.emptyTitle, { color: TEXT }]}>
-              {isCooldownActive ? 'Félicitations !' : 'Aucun défi actif'}
-            </Text>
-            <Text style={[styles.emptySub, { color: SUB }]}>
-              {isCooldownActive
-                ? "Tu as accompli toutes tes quêtes. Rixy prépare de nouveaux défis personnalisés pour toi."
-                : "Rixy peut générer des défis financiers intelligents adaptés à tes habitudes !"}
-            </Text>
-          </View>
         )}
-
-        {/* ── Generate CTA (manuel si besoin de quêtes supplémentaires) ─ */}
-        {quests.length < 5 && (
-          isCooldownActive && progress?.nextQuestGenerationAt ? (
-            <View
-              style={[
-                styles.generateBtn,
-                {
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb',
-                  borderWidth: 1,
-                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#d1d5db',
-                },
-              ]}
-            >
-              <Ionicons
-                name="hourglass-outline"
-                size={18}
-                color={isDark ? '#94a3b8' : '#6b7280'}
-              />
-              <Text style={[styles.generateBtnText, { color: isDark ? '#94a3b8' : '#6b7280' }]}>
-                Nouveaux défis disponibles dans {Math.ceil(
-                  (new Date(progress.nextQuestGenerationAt).getTime() - Date.now()) /
-                    (24 * 60 * 60 * 1000)
-                )} jour{Math.ceil(
-                  (new Date(progress.nextQuestGenerationAt).getTime() - Date.now()) /
-                    (24 * 60 * 60 * 1000)
-                ) > 1
-                  ? 's'
-                  : ''}
-              </Text>
-            </View>
-          ) : (
-            <Pressable
-              style={({ pressed }) => [styles.generateBtn, pressed && { opacity: 0.88 }]}
-              onPress={handleGenerate}
-              disabled={generating}
-            >
-              {generating ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="sparkles" size={18} color="#fff" />
-                  <Text style={styles.generateBtnText}>Générer d'autres défis avec Rixy</Text>
-                </>
-              )}
-            </Pressable>
-          )
-        )}
-
-        {/* ── Recently completed ────────────────────────────────────── */}
-        {recentCompleted.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: TEXT }]}>Récemment accomplis</Text>
-            {recentCompleted.map((q) => (
-              <View key={q._id} style={[styles.completedRow, { backgroundColor: CARD }]}>
-                <Text style={{ fontSize: 22 }}>{q.icon || '🏆'}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.completedTitle, { color: TEXT }]}>{q.title}</Text>
-                  <Text style={[styles.completedDate, { color: SUB }]}>
-                    {q.completedAt
-                      ? new Date(q.completedAt).toLocaleDateString('fr-FR', {
-                          day: 'numeric', month: 'short',
-                        })
-                      : '—'}
-                  </Text>
-                </View>
-                <View style={styles.xpBadge}>
-                  <Ionicons name="checkmark-done" size={12} color="#10b981" />
-                  <Text style={styles.xpBadgeText}>+{q.xpReward} XP</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <Text style={[styles.disclaimer, { color: SUB }]}>
-          Rixy génère automatiquement de nouveaux défis quand tu en termines un. Tu peux aussi en demander manuellement ci-dessus.
-        </Text>
       </ScrollView>
     </View>
   );
@@ -535,7 +555,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.07)',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -110,7 +110,7 @@ Ce document résume le dépôt **Ryx** : application mobile (Expo), API Node/Exp
 |--------|---------|-------|------|
 | Mobile | `front-end/RyxMobile/` | Expo ~55, React Native 0.83, expo-router, TypeScript | App utilisateur : auth, dépenses, boutique, profil, chatbot assistant |
 | API | `back-end/` | Express 5, Mongoose 9, MongoDB | REST sous préfixe `/api/*` |
-| IA | `service-ai/` | FastAPI, Uvicorn, Google Gemini (`google-generativeai`), PyMongo optionnel | `POST /chat`, contexte financier utilisateur si `MONGO_URI` |
+| IA | `service-ai/` | FastAPI, Uvicorn, Google Gemini (`google-generativeai`), PyMongo optionnel | `POST /chat`, `POST /api/quests/generate`, contexte financier utilisateur si `MONGO_URI` |
 
 **Flux typique :** l’app mobile appelle le back-end (`EXPO_PUBLIC_API_URL`). Le chatbot peut appeler le service IA (`EXPO_PUBLIC_AI_SERVICE_URL` ou dérivation LAN + port).
 
@@ -147,6 +147,7 @@ BODY+=$(cat <<'MID'
 - `routes/shop.js`, `controllers/shopController.js` — boutique (produits, commandes)
 - `models/*.js` — schémas Mongoose (`User`, `Transaction`, `Wallet`, `Product`, `ShopOrder`, etc.)
 - `controllers/whatsappOtpController.js`, `services/whatsappOtpSend.js` — OTP WhatsApp (inscription)
+- `routes/quests.js`, `controllers/questController.js` — défis RyxQuest (génération IA / règles de secours, cooldown)
 
 ---
 
@@ -156,7 +157,7 @@ BODY+=$(cat <<'MID'
 - **Onglets :** `app/(tabs)/` (navigation principale).
 - **Écrans :** `app/screen/*` (dépenses, accueil, paramètres, boutique, chatbot, profil, etc.).
 - **Auth :** `app/auth/*` (login, register, OTP, onboarding).
-- **Clients HTTP :** `services/*.ts` (`auth.ts`, `expenses.ts`, `dashboard.ts`, `shop.ts`, `chatbot.ts`, …).
+- **Clients HTTP :** `services/*.ts` (`auth.ts`, `expenses.ts`, `dashboard.ts`, `shop.ts`, `chatbot.ts`, `quests.ts`, …).
 - **Thème / i18n :** `theme`, `locales/strings.ts`, hooks `useTranslation`, `useAppTheme`.
 
 ### Variables d’environnement (public Expo)
@@ -171,7 +172,7 @@ Voir `front-end/RyxMobile/.env.example` : `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_AI
 
 - **Entrée :** `main.py` (FastAPI `app`).
 - **Dépendances :** `requirements.txt` (FastAPI, Uvicorn, python-dotenv, google-generativeai, pymongo).
-- **Contexte Mongo :** `mongo_context.py` — si `MONGO_URI` est défini et `user_mongo_id` envoyé, enrichit le prompt avec données Ryx (sans mot de passe).
+- **Contexte Mongo :** `mongo_context.py` — si `MONGO_URI` est défini et `user_mongo_id` ou `userId` envoyé, enrichit le prompt avec données Ryx (sans mot de passe).
 - **Doc détaillée :** `service-ai/README.md`.
 - **Lancement dev réseau local :** `uvicorn main:app --reload --host 0.0.0.0 --port 8081` (ou autre port, aligné avec `.env` mobile).
 
@@ -218,7 +219,7 @@ BODY+=$(cat <<'FOOTER'
 - API Node:
   - OTP: `RATE_LIMIT_OTP_WINDOW_MS`, `RATE_LIMIT_OTP_MAX`
   - Auth: `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_AUTH_MAX`
-- Service IA: `AI_RATE_LIMIT_CHAT_MAX`, `AI_RATE_LIMIT_CHAT_WINDOW_S` (par IP sur `POST /chat`)
+- Service IA: `AI_RATE_LIMIT_CHAT_MAX`, `AI_RATE_LIMIT_CHAT_WINDOW_S` (par IP sur `POST /chat` et `POST /api/quests/generate`)
 
 FOOTER
 )

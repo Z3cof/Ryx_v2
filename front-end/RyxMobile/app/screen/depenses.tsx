@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Alert } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar, type StatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,7 +21,14 @@ import {
   type ExpenseItem,
   type IncomeByMonth as ApiIncomeByMonth,
 } from '../../services/expenses';
-import { getPendingTransactions } from '../../services/offlineStorage';
+import {
+  getPendingTransactions,
+  getCachedData,
+  getDashboardCacheKey,
+  getSummaryCacheKey,
+  getExpensesCacheKey,
+  getIncomeCacheKey,
+} from '../../services/offlineStorage';
 import {
   buildExpenseDonutSegments,
   groupExpensesByCategory,
@@ -181,6 +188,25 @@ export default function DepensesScreen() {
         setLoading(false);
         return;
       }
+
+      // Try loading from cache immediately so it's already ready
+      if (mode === 'initial') {
+        try {
+          const [cachedDash, cachedSum] = await Promise.all([
+            getCachedData<DashboardData>(getDashboardCacheKey(userId)),
+            getCachedData<any>(getSummaryCacheKey(userId)),
+          ]);
+          if (cachedDash) {
+            setData(cachedDash);
+          }
+          if (cachedSum) {
+            setSummary(cachedSum);
+          }
+        } catch (err) {
+          console.warn('[Depenses Cache] Failed to load data cache:', err);
+        }
+      }
+
       if (mode === 'initial') setLoading(true);
       else if (mode === 'pull') setRefreshing(true);
       setError(null);
@@ -249,10 +275,26 @@ export default function DepensesScreen() {
     if (!userId || mainTab !== 'projets') return;
     let cancelled = false;
     (async () => {
+      // SWR: Try loading projects from cache immediately
+      try {
+        const cachedProj = await getCachedData<ProjectGoal[]>(`cached_projects_${userId}`);
+        if (!cancelled && cachedProj) {
+          setProjects(cachedProj);
+          setProjectsLoading(false);
+        }
+      } catch (err) {
+        // ignore
+      }
+
       setProjectsLoading(true);
-      try { const rows = await fetchProjects(userId); if (!cancelled) setProjects(rows); }
-      catch { if (!cancelled) setProjects([]); }
-      finally { if (!cancelled) setProjectsLoading(false); }
+      try {
+        const rows = await fetchProjects(userId);
+        if (!cancelled) setProjects(rows);
+      } catch {
+        if (!cancelled && !projects.length) setProjects([]);
+      } finally {
+        if (!cancelled) setProjectsLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [userId, mainTab]);
@@ -262,10 +304,29 @@ export default function DepensesScreen() {
     setCategoryItemsExpanded({}); setIncomeCategoryExpanded({});
     let cancelled = false;
     (async () => {
+      // SWR: Try loading month data from cache immediately
+      try {
+        const [cachedE, cachedI] = await Promise.all([
+          getCachedData<any>(getExpensesCacheKey(userId, selectedYear, selectedMonth)),
+          getCachedData<any>(getIncomeCacheKey(userId, selectedYear, selectedMonth)),
+        ]);
+        if (!cancelled && (cachedE || cachedI)) {
+          if (cachedE) setMonthData(cachedE);
+          if (cachedI) setIncomeData(cachedI);
+        }
+      } catch (err) {
+        // ignore cache load errors
+      }
+
+      // Revalidate in background
       try {
         const [e, i] = await Promise.all([fetchExpensesByMonth(userId, selectedYear, selectedMonth), fetchIncomeByMonth(userId, selectedYear, selectedMonth)]);
         if (!cancelled) { setMonthData(e); setIncomeData(i); }
-      } catch { if (!cancelled) { setMonthData(null); setIncomeData(null); } }
+      } catch {
+        if (!cancelled && !monthData && !incomeData) {
+          setMonthData(null); setIncomeData(null);
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, [userId, selectedYear, selectedMonth, summary]);
@@ -352,15 +413,6 @@ export default function DepensesScreen() {
 
   const gradientSoft = ui.gradientSoft as [string, string, string, string];
 
-  // ─── Render ───────────────────────────────────────────────────
-  if (loading && !data) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <StatusBar style={ui.statusBar as StatusBarStyle} />
-        <RyxLoader fullScreen />
-      </View>
-    );
-  }
 
   if (error && !data) {
     return (
@@ -387,15 +439,15 @@ export default function DepensesScreen() {
       >
         <PeriodNavigator
           styles={styles}
-          canGoPrev={canGoPrevPeriod}
-          canGoNext={canGoNextPeriod}
-          onPrev={goPrevPeriod}
-          onNext={goNextPeriod}
           periodLabel={periodCenterLabel}
           onOpenPicker={() => setMonthPickerVisible(true)}
           activeTab={mainTab}
           onChangeTab={setMainTab}
           topInset={insets.top}
+          onBack={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace({ pathname: '/screen/accueil', params: { userId, userName: data?.user?.name || '' } });
+          }}
         />
 
         {pendingTxCount > 0 ? (
@@ -465,74 +517,80 @@ export default function DepensesScreen() {
         ) : null}
 
         <View style={styles.content}>
-          <View style={{ paddingHorizontal: GRID_PADDING, paddingTop: spacing[5] }}>
-            {mainTab === 'sorties' && (
-              <SortiesTab
-                styles={styles}
-                totalDepenses={totalDepensesSelected}
-                expenses={expenses}
-                expenseDonutSegments={expenseDonutSegments}
-                expenseDonutGrandTotal={expenseDonutGrandTotal}
-                expensesByCategory={expensesByCategory}
-                summary={summary}
-                selectedYear={selectedYear}
-                selectedMonth={selectedMonth}
-                currentYear={currentYear}
-                currentMonth={currentMonth}
-                categoryItemsExpanded={categoryItemsExpanded}
-                onToggleCategory={(id) => setCategoryItemsExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}
-                onItemLongPress={openTransactionActions}
-                onAddExpense={() => { setAddModalStep('expense'); setAddModalVisible(true); }}
-                formatAmount={formatAmount}
-                formatListDate={formatListDate}
-              />
-            )}
+          {loading && !data ? (
+            <View style={{ paddingVertical: spacing[8], alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="large" color={primary.main} />
+            </View>
+          ) : (
+            <View style={{ paddingHorizontal: GRID_PADDING, paddingTop: spacing[5] }}>
+              {mainTab === 'sorties' && (
+                <SortiesTab
+                  styles={styles}
+                  totalDepenses={totalDepensesSelected}
+                  expenses={expenses}
+                  expenseDonutSegments={expenseDonutSegments}
+                  expenseDonutGrandTotal={expenseDonutGrandTotal}
+                  expensesByCategory={expensesByCategory}
+                  summary={summary}
+                  selectedYear={selectedYear}
+                  selectedMonth={selectedMonth}
+                  currentYear={currentYear}
+                  currentMonth={currentMonth}
+                  categoryItemsExpanded={categoryItemsExpanded}
+                  onToggleCategory={(id) => setCategoryItemsExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}
+                  onItemLongPress={openTransactionActions}
+                  onAddExpense={() => { setAddModalStep('expense'); setAddModalVisible(true); }}
+                  formatAmount={formatAmount}
+                  formatListDate={formatListDate}
+                />
+              )}
 
-            {mainTab === 'entrees' && (
-              <EntreesTab
-                styles={styles}
-                totalIncome={totalIncomeSelected}
-                incomeList={incomeItemsForDonut}
-                incomeDonutSegments={incomeDonutSegments}
-                incomeDonutGrandTotal={incomeDonutGrandTotal}
-                incomeByCategory={incomeByCategory}
-                incomeCategoryExpanded={incomeCategoryExpanded}
-                onToggleCategory={(id) => setIncomeCategoryExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}
-                onItemLongPress={openTransactionActions}
-                onAddIncome={() => { setAddModalStep('income'); setAddModalVisible(true); }}
-                formatAmount={formatAmount}
-                formatListDate={formatListDate}
-              />
-            )}
+              {mainTab === 'entrees' && (
+                <EntreesTab
+                  styles={styles}
+                  totalIncome={totalIncomeSelected}
+                  incomeList={incomeItemsForDonut}
+                  incomeDonutSegments={incomeDonutSegments}
+                  incomeDonutGrandTotal={incomeDonutGrandTotal}
+                  incomeByCategory={incomeByCategory}
+                  incomeCategoryExpanded={incomeCategoryExpanded}
+                  onToggleCategory={(id) => setIncomeCategoryExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}
+                  onItemLongPress={openTransactionActions}
+                  onAddIncome={() => { setAddModalStep('income'); setAddModalVisible(true); }}
+                  formatAmount={formatAmount}
+                  formatListDate={formatListDate}
+                />
+              )}
 
-            {mainTab === 'recurrences' && (
-              <RecurrencesTab
-                styles={styles}
-                recurringRulesLoading={recurringRulesLoading}
-                recurringExpenseTemplates={recurringExpenseTemplates}
-                recurringIncomeTemplates={recurringIncomeTemplates}
-                onOpenEditor={(rule) => setRecurringEditRule(rule)}
-                onDelete={confirmDeleteRecurring}
-                onAddRecurring={(flow) => { setRecurringAddFlow(flow); setRecurringAddVisible(true); }}
-                formatAmount={formatAmount}
-                formatCadence={formatRecurringCadenceLabel}
-              />
-            )}
+              {mainTab === 'recurrences' && (
+                <RecurrencesTab
+                  styles={styles}
+                  recurringRulesLoading={recurringRulesLoading}
+                  recurringExpenseTemplates={recurringExpenseTemplates}
+                  recurringIncomeTemplates={recurringIncomeTemplates}
+                  onOpenEditor={(rule) => setRecurringEditRule(rule)}
+                  onDelete={confirmDeleteRecurring}
+                  onAddRecurring={(flow) => { setRecurringAddFlow(flow); setRecurringAddVisible(true); }}
+                  formatAmount={formatAmount}
+                  formatCadence={formatRecurringCadenceLabel}
+                />
+              )}
 
-            {mainTab === 'projets' && (
-              <ProjetsTab
-                styles={styles}
-                projects={projects}
-                projectsLoading={projectsLoading}
-                userId={userId}
-                onProjectsChange={setProjects}
-                onOpenActions={openProjectActions}
-                onOpenFill={(id) => { setProjectFillId(id); setProjectFillVisible(true); }}
-                onOpenAdd={() => setProjectAddVisible(true)}
-                formatAmount={formatAmount}
-              />
-            )}
-          </View>
+              {mainTab === 'projets' && (
+                <ProjetsTab
+                  styles={styles}
+                  projects={projects}
+                  projectsLoading={projectsLoading}
+                  userId={userId}
+                  onProjectsChange={setProjects}
+                  onOpenActions={openProjectActions}
+                  onOpenFill={(id) => { setProjectFillId(id); setProjectFillVisible(true); }}
+                  onOpenAdd={() => setProjectAddVisible(true)}
+                  formatAmount={formatAmount}
+                />
+              )}
+            </View>
+          )}
 
           <MonthPickerModal
             styles={styles}

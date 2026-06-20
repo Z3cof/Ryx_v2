@@ -1,4 +1,5 @@
 import { apiFetch } from './apiFetch';
+import { cacheData, getCachedData } from './offlineStorage';
 
 export type Quest = {
   _id: string;
@@ -56,13 +57,24 @@ export type CompleteQuestResponse = {
 };
 
 export async function fetchQuests(userId: string): Promise<FetchQuestsResponse> {
-  const res = await apiFetch(`/api/quests/${encodeURIComponent(userId)}`, { method: 'GET' });
-  const text = await res.text();
-  if (!res.ok) {
-    const data = text ? JSON.parse(text) : {};
-    throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
+  const cacheKey = `cached_quests_${userId}`;
+  try {
+    const res = await apiFetch(`/api/quests/${encodeURIComponent(userId)}`, { method: 'GET' });
+    const text = await res.text();
+    if (!res.ok) {
+      const data = text ? JSON.parse(text) : {};
+      throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
+    }
+    const parsed = JSON.parse(text || '{}') as FetchQuestsResponse;
+    await cacheData(cacheKey, parsed);
+    return parsed;
+  } catch (err) {
+    const cached = await getCachedData<FetchQuestsResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    throw err;
   }
-  return JSON.parse(text || '{}');
 }
 
 export async function fetchProgress(userId: string): Promise<UserQuestProgress> {

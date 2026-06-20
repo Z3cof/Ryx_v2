@@ -10,20 +10,22 @@ export type MainTab = 'sorties' | 'entrees' | 'recurrences' | 'projets';
 
 interface PeriodNavigatorProps {
   styles: DepensesStyles;
-  canGoPrev: boolean;
-  canGoNext: boolean;
-  onPrev: () => void;
-  onNext: () => void;
   periodLabel: string;
   onOpenPicker: () => void;
   activeTab: MainTab;
   onChangeTab: (tab: MainTab) => void;
   topInset: number;
+  onBack: () => void;
 }
 
 export function PeriodNavigator({
-  styles, canGoPrev, canGoNext, onPrev, onNext,
-  periodLabel, onOpenPicker, activeTab, onChangeTab, topInset,
+  styles,
+  periodLabel,
+  onOpenPicker,
+  activeTab,
+  onChangeTab,
+  topInset,
+  onBack,
 }: PeriodNavigatorProps) {
   const { ui, spacing } = useAppTheme();
   const { t } = useTranslation();
@@ -36,13 +38,11 @@ export function PeriodNavigator({
             style={({ pressed }) => [
               styles.periodArrowBtn,
               { borderColor: ui.border },
-              !canGoPrev && styles.periodArrowBtnDisabled,
-              pressed && canGoPrev && styles.periodArrowBtnPressed,
+              pressed && styles.periodArrowBtnPressed,
             ]}
-            onPress={onPrev}
-            disabled={!canGoPrev}
+            onPress={onBack}
           >
-            <Ionicons name="chevron-back" size={22} color={canGoPrev ? ui.textTitle : ui.textTertiary} />
+            <Ionicons name="chevron-back" size={22} color={ui.textTitle} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.periodCenterPressable, pressed && styles.periodCenterPressablePressed]}
@@ -51,18 +51,8 @@ export function PeriodNavigator({
             <Text style={styles.periodCenterLabel}>{periodLabel}</Text>
             <Ionicons name="chevron-down" size={18} color={ui.textSecondary} />
           </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.periodArrowBtn,
-              { borderColor: ui.border },
-              !canGoNext && styles.periodArrowBtnDisabled,
-              pressed && canGoNext && styles.periodArrowBtnPressed,
-            ]}
-            onPress={onNext}
-            disabled={!canGoNext}
-          >
-            <Ionicons name="chevron-forward" size={22} color={canGoNext ? ui.textTitle : ui.textTertiary} />
-          </Pressable>
+          {/* Spacer to center the picker */}
+          <View style={{ width: 40 }} />
         </View>
       </View>
       <View style={[styles.periodTabsHairline, { backgroundColor: ui.border }]} />

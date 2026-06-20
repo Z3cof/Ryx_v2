@@ -28,7 +28,13 @@ import { RyxLoader } from '../../components/RyxLoader';
 import { UserAvatar } from '../../components/UserAvatar';
 import { fetchDashboard, type DashboardData } from '../../services/dashboard';
 import { formatMoney, walletCurrencyFromDashboard, type MoneyLocale } from '../../utils/currency';
-import { INCOME_CATEGORIES, type ExpenseItem } from '../../services/expenses';
+import {
+  INCOME_CATEGORIES,
+  fetchExpensesSummary,
+  fetchExpensesByMonth,
+  fetchIncomeByMonth,
+  type ExpenseItem,
+} from '../../services/expenses';
 import {
   buildExpenseDonutSegments,
   groupExpensesByCategory,
@@ -748,6 +754,19 @@ export default function AccueilScreen() {
         } catch {
           setMonthlyBalance(null);
         }
+
+        // Silent background pre-fetching to prime the cache for list screens
+        void (async () => {
+          try {
+            await Promise.all([
+              fetchExpensesSummary(userId),
+              fetchExpensesByMonth(userId, y, m),
+              fetchIncomeByMonth(userId, y, m),
+            ]);
+          } catch (preloadErr) {
+            console.warn('[Background Preload] Failed to prefetch monthly list data:', preloadErr);
+          }
+        })();
       } catch (e) {
         if (mode === 'initial') dashboardLoadedRef.current = false;
         if (mode !== 'silent') {

@@ -10,7 +10,7 @@ Ce document résume le dépôt **Ryx** : application mobile (Expo), API Node/Exp
 |--------|---------|-------|------|
 | Mobile | `front-end/RyxMobile/` | Expo ~55, React Native 0.83, expo-router, TypeScript | App utilisateur : auth, dépenses, boutique, profil, chatbot assistant |
 | API | `back-end/` | Express 5, Mongoose 9, MongoDB | REST sous préfixe `/api/*` |
-| IA | `service-ai/` | FastAPI, Uvicorn, Google Gemini (`google-generativeai`), PyMongo optionnel | `POST /chat`, contexte financier utilisateur si `MONGO_URI` |
+| IA | `service-ai/` | FastAPI, Uvicorn, Google Gemini (`google-generativeai`), PyMongo optionnel | `POST /chat`, `POST /api/quests/generate`, contexte financier utilisateur si `MONGO_URI` |
 
 **Flux typique :** l’app mobile appelle le back-end (`EXPO_PUBLIC_API_URL`). Le chatbot peut appeler le service IA (`EXPO_PUBLIC_AI_SERVICE_URL` ou dérivation LAN + port).
 
@@ -34,7 +34,7 @@ app.use('/api/balance', balanceRoutes);
 app.use('/api/monthly-balance', balanceRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/recurring', recurringRoutes);
-app.use('/api/shop', shopRoutes);
+app.use('/api/quests', questRoutes);
 app.use('/api/projects', projectRoutes);
 ```
 
@@ -50,6 +50,7 @@ app.use('/api/projects', projectRoutes);
 - `routes/shop.js`, `controllers/shopController.js` — boutique (produits, commandes)
 - `models/*.js` — schémas Mongoose (`User`, `Transaction`, `Wallet`, `Product`, `ShopOrder`, etc.)
 - `controllers/whatsappOtpController.js`, `services/whatsappOtpSend.js` — OTP WhatsApp (inscription)
+- `routes/quests.js`, `controllers/questController.js` — défis RyxQuest (génération IA / règles de secours, cooldown)
 
 ---
 
@@ -59,7 +60,7 @@ app.use('/api/projects', projectRoutes);
 - **Onglets :** `app/(tabs)/` (navigation principale).
 - **Écrans :** `app/screen/*` (dépenses, accueil, paramètres, boutique, chatbot, profil, etc.).
 - **Auth :** `app/auth/*` (login, register, OTP, onboarding).
-- **Clients HTTP :** `services/*.ts` (`auth.ts`, `expenses.ts`, `dashboard.ts`, `shop.ts`, `chatbot.ts`, …).
+- **Clients HTTP :** `services/*.ts` (`auth.ts`, `expenses.ts`, `dashboard.ts`, `shop.ts`, `chatbot.ts`, `quests.ts`, …).
 - **Thème / i18n :** `theme`, `locales/strings.ts`, hooks `useTranslation`, `useAppTheme`.
 
 ### Variables d’environnement (public Expo)
@@ -74,7 +75,7 @@ Voir `front-end/RyxMobile/.env.example` : `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_AI
 
 - **Entrée :** `main.py` (FastAPI `app`).
 - **Dépendances :** `requirements.txt` (FastAPI, Uvicorn, python-dotenv, google-generativeai, pymongo).
-- **Contexte Mongo :** `mongo_context.py` — si `MONGO_URI` est défini et `user_mongo_id` envoyé, enrichit le prompt avec données Ryx (sans mot de passe).
+- **Contexte Mongo :** `mongo_context.py` — si `MONGO_URI` est défini et `user_mongo_id` ou `userId` envoyé, enrichit le prompt avec données Ryx (sans mot de passe).
 - **Doc détaillée :** `service-ai/README.md`.
 - **Lancement dev réseau local :** `uvicorn main:app --reload --host 0.0.0.0 --port 8081` (ou autre port, aligné avec `.env` mobile).
 
@@ -98,6 +99,7 @@ Liste tronquée (~400 chemins max), sans `node_modules`, `venv`, `.git`, builds 
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -105,12 +107,19 @@ Liste tronquée (~400 chemins max), sans `node_modules`, `venv`, `.git`, builds 
     "express-rate-limit": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.12.41",
-    "mongoose": "^9.2.4"
+    "mongoose": "^9.2.4",
+    "nodemailer": "^8.0.10"
   },
   "scripts": {
     "start": "node servers.js",
+    "test": "jest",
     "migrate:currency-xof": "node scripts/migrate-currency-to-xof.js",
     "migrate:currency-xof:dry-run": "node scripts/migrate-currency-to-xof.js --dry-run"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^11.1.0",
+    "supertest": "^7.2.2"
   }
 }
 ```
@@ -122,10 +131,12 @@ Liste tronquée (~400 chemins max), sans `node_modules`, `venv`, `.git`, builds 
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
+    "start:lan": "expo start --lan",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "ios:clean": "expo prebuild --clean --platform ios && expo run:ios",
     "web": "expo start --web",
+    "test": "jest",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -140,10 +151,13 @@ Liste tronquée (~400 chemins max), sans `node_modules`, `venv`, `.git`, builds 
     "expo-linear-gradient": "~55.0.8",
     "expo-linking": "~55.0.9",
     "expo-localization": "~55.0.9",
+    "expo-print": "~55.0.15",
     "expo-router": "~55.0.4",
     "expo-secure-store": "~15.0.7",
+    "expo-sharing": "~55.0.20",
     "expo-splash-screen": "~55.0.10",
     "expo-status-bar": "~55.0.4",
+    "expo-symbols": "^56.0.6",
     "expo-web-browser": "~55.0.9",
     "libphonenumber-js": "^1.12.41",
     "react": "19.2.0",
@@ -151,12 +165,17 @@ Liste tronquée (~400 chemins max), sans `node_modules`, `venv`, `.git`, builds 
     "react-native": "0.83.2",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.23.0",
-    "react-native-svg": "15.15.3",
+    "react-native-svg": "^15.15.3",
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.3.3",
     "@types/react": "~19.2.0",
+    "jest": "^29.7.0",
+    "jest-expo": "^55.0.18",
     "patch-package": "^8.0.0",
+    "react-test-renderer": "^19.2.0",
     "typescript": "~5.9.2"
   },
   "private": true
@@ -164,40 +183,59 @@ Liste tronquée (~400 chemins max), sans `node_modules`, `venv`, `.git`, builds 
 ```
 ### requirements.txt service-ai (`service-ai/requirements.txt`)
 ```
-fastapi==0.115.6
-uvicorn[standard]==0.32.1
+# Python 3.11 ou 3.12 uniquement (3.14 : protobuf / google-generativeai incompatibles).
+fastapi==0.111.0
+uvicorn[standard]==0.27.0
 python-dotenv==1.0.1
-google-generativeai==0.8.5
-pymongo==4.16.0
+google-generativeai>=0.8.3,<0.9
+protobuf>=5.29.0,<6
+pymongo==4.13.0
 ```
 ### .env.example back-end (sans secrets) (`back-end/.env.example`)
 ```
 # Base MongoDB locale (le serveur MongoDB doit être démarré).
-# Démarrage : brew services start mongodb-community (Mac) ou mongod
 MONGO_URI=mongodb://localhost:27017/ryxdb
 PORT=3000
 
-# JWT (connexion mobile) — en prod : chaîne longue aléatoire (openssl rand -hex 32)
-JWT_SECRET=change-moi-en-production
+# Production (Render)
+# NODE_ENV=production
+# JWT_SECRET=… (openssl rand -hex 32)
 
-# CORS (optionnel). Si défini, seules ces origines seront autorisées (séparées par des virgules).
-# Exemple (Expo web + dev local) :
-# CORS_ORIGINS=http://localhost:19006,http://localhost:8081
+# ── OTP par e-mail (EmailJS — recommandé sur Render, sans domaine) ───────────
+# 1. Compte https://www.emailjs.com/ → Email Service (Gmail, etc.)
+# 2. Template avec « To email » = {{to_email}} et corps : code {{otp_code}}
+# 3. Account → Security : activer « Allow non-browser API » + « Use Private Key »
+# 4. Account → API Keys : Public Key + Private Key (obligatoire si « Use Private Key » activé)
+# 5. Account → Security : « Allow API for non-browser applications » = ON
+EMAILJS_SERVICE_ID=service_xxxxxxxx
+EMAILJS_TEMPLATE_ID=template_xxxxxxxx
+EMAILJS_PUBLIC_KEY=xxxxxxxxxxxxxxxx
+EMAILJS_PRIVATE_KEY=xxxxxxxxxxxxxxxx
+# EMAILJS_DEBUG=true  # sur Render : renvoie detail dans la 502 (diagnostic)
 
-# Rate limiting (optionnel). Valeurs par défaut raisonnables intégrées au code.
-# RATE_LIMIT_OTP_WINDOW_MS=600000
-# RATE_LIMIT_OTP_MAX=10
-# RATE_LIMIT_AUTH_WINDOW_MS=600000
-# RATE_LIMIT_AUTH_MAX=20
+# WHATSAPP_MOCK=false quand EmailJS est configuré (sinon l’e-mail est ignoré).
+WHATSAPP_MOCK=false
 
-# OTP inscription par WhatsApp (API Cloud Meta). En dev sans compte Meta : WHATSAPP_MOCK=true
-# (le code s’affiche dans la réponse JSON devOtp et dans les logs serveur).
-WHATSAPP_MOCK=true
+# Mot de passe oublié : POST /api/auth/forgot-password/send|verify|reset (OTP par e-mail, même template EmailJS).
+
+# ── WhatsApp OTP (optionnel, si WHATSAPP_MOCK=false et pas d’e-mail à l’inscription)
 # META_WHATSAPP_ACCESS_TOKEN=
 # META_WHATSAPP_PHONE_NUMBER_ID=
-# Template WhatsApp : un paramètre body = code OTP (ex. {{1}})
 # META_WHATSAPP_OTP_TEMPLATE_NAME=ryx_otp
 # META_WHATSAPP_TEMPLATE_LANG=fr
+
+# ── Secours dev sans EmailJS ─────────────────────────────────────────────────
+# WHATSAPP_MOCK=true → code OTP dans les logs + devOtp (tests uniquement)
+
+# SMTP local (Gmail) — fonctionne en local, souvent bloqué sur Render
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USER=ton@gmail.com
+# SMTP_PASS=mot_de_passe_application
+# EMAIL_FROM=Ryx <ton@gmail.com>
+
+# Resend (optionnel, domaine vérifié requis)
+# RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 ### .env.example service-ai (sans secrets) (`service-ai/.env.example`)
 ```
@@ -211,8 +249,8 @@ GEMINI_MODEL=gemini-2.5-flash
 # Optionnel : inséré en 2e position dans la chaîne d'essais.
 # GEMINI_MODEL_FALLBACK=gemini-flash-latest
 
-# Même chaîne que le back Node — le chat enrichit le prompt (profil + dernières transactions).
-# MONGO_URI=mongodb://localhost:27017/ryxdb
+# OBLIGATOIRE pour les chiffres personnalisés (même valeur que back-end/.env).
+MONGO_URI=mongodb://localhost:27017/ryxdb
 # Optionnel si l’URI n’a pas de nom de base :
 # MONGO_DB_NAME=ryxdb
 
@@ -226,7 +264,7 @@ GEMINI_MODEL=gemini-2.5-flash
 # AI_RATE_LIMIT_CHAT_MAX=30
 # AI_RATE_LIMIT_CHAT_WINDOW_S=600
 
-PORT=8081
+PORT=8082
 ```
 ### .env.example mobile (sans secrets) (`front-end/RyxMobile/.env.example`)
 ```
@@ -246,6 +284,9 @@ EXPO_PUBLIC_API_URL=http://192.168.1.19:3000
 
 # Si service-ai a RYX_AI_SERVICE_SECRET dans .env, mets la même valeur ici (sinon 401 sur /chat).
 # EXPO_PUBLIC_AI_CONTEXT_SECRET=change-moi-en-production
+
+# Optionnel : timeout des requêtes vers le back Node (ms), défaut 20000 — évite chargement infini si mauvaise IP.
+# EXPO_PUBLIC_API_FETCH_TIMEOUT_MS=25000
 
 # Optionnel : délai max (ms) pour POST /chat — Gemini + Mongo peut dépasser ~60s (défaut app : 120000).
 # EXPO_PUBLIC_AI_CHAT_TIMEOUT_MS=180000
@@ -271,4 +312,4 @@ EXPO_PUBLIC_API_URL=http://192.168.1.19:3000
 - API Node:
   - OTP: `RATE_LIMIT_OTP_WINDOW_MS`, `RATE_LIMIT_OTP_MAX`
   - Auth: `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_AUTH_MAX`
-- Service IA: `AI_RATE_LIMIT_CHAT_MAX`, `AI_RATE_LIMIT_CHAT_WINDOW_S` (par IP sur `POST /chat`)
+- Service IA: `AI_RATE_LIMIT_CHAT_MAX`, `AI_RATE_LIMIT_CHAT_WINDOW_S` (par IP sur `POST /chat` et `POST /api/quests/generate`)

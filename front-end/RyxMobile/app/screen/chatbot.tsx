@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
   Keyboard,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar, type StatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -233,7 +233,7 @@ export default function ChatbotScreen() {
   const [resolvedUserName, setResolvedUserName] = useState(paramUserName);
   const displayName = resolvedUserName || paramUserName;
   const userMongoId = resolvedUserId || paramUserId;
-  const { ui, colors, primary, spacing, radius, fontSize } = useAppTheme();
+  const { ui, colors, primary, spacing, radius, fontSize, isDark } = useAppTheme();
   const { t, locale } = useTranslation();
   const screenWidth = Dimensions.get('window').width;
 
@@ -384,6 +384,26 @@ export default function ChatbotScreen() {
       >
         <View style={[styles.header, { paddingTop: insets.top + spacing[4], paddingHorizontal: GRID_PADDING }]}>
           <View style={styles.headerRow}>
+            <Pressable
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace({ pathname: '/screen/accueil', params: { userId: userMongoId, userName: displayName } });
+              }}
+              style={({ pressed }) => [
+                {
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: spacing[1],
+                },
+                pressed && { opacity: 0.6 }
+              ]}
+            >
+              <Ionicons name="chevron-back" size={20} color={ui.textPrimary} />
+            </Pressable>
             <View style={styles.headerIconWrap}>
               <Ionicons name="chatbubbles" size={26} color={primary.main} />
             </View>

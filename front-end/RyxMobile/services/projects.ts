@@ -1,4 +1,5 @@
 import { apiFetch } from './apiFetch';
+import { cacheData, getCachedData } from './offlineStorage';
 
 export type ProjectGoal = {
   id: string;
@@ -15,14 +16,25 @@ export type ProjectGoal = {
 };
 
 export async function fetchProjects(userId: string): Promise<ProjectGoal[]> {
-  const res = await apiFetch(`/api/projects/${encodeURIComponent(userId)}`, { method: 'GET' });
-  const text = await res.text();
-  if (!res.ok) {
-    const data = text ? JSON.parse(text) : {};
-    throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
+  const cacheKey = `cached_projects_${userId}`;
+  try {
+    const res = await apiFetch(`/api/projects/${encodeURIComponent(userId)}`, { method: 'GET' });
+    const text = await res.text();
+    if (!res.ok) {
+      const data = text ? JSON.parse(text) : {};
+      throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
+    }
+    const data = JSON.parse(text || '{}') as { projects?: ProjectGoal[] };
+    const list = data.projects ?? [];
+    await cacheData(cacheKey, list);
+    return list;
+  } catch (err) {
+    const cached = await getCachedData<ProjectGoal[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    throw err;
   }
-  const data = JSON.parse(text || '{}') as { projects?: ProjectGoal[] };
-  return data.projects ?? [];
 }
 
 export async function createProjectGoal(

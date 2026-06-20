@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
+import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useAppTheme';
 
 type RyxLoaderProps = {
@@ -7,84 +8,178 @@ type RyxLoaderProps = {
   fullScreen?: boolean;
 };
 
-function AnimatedDot({ delay, dotColor }: { delay: number; dotColor: string }) {
-  const translateY = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(translateY, {
-          toValue: -6,
-          duration: 300,
-          delay,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [delay, translateY]);
-  return (
-    <Animated.View style={[styles.dotBase, { backgroundColor: dotColor, transform: [{ translateY }] }]} />
-  );
-}
-
 export function RyxLoader({ fullScreen = true }: RyxLoaderProps) {
   const { ui, colors, spacing } = useAppTheme();
-  const opacity = useRef(new Animated.Value(0.4)).current;
-  const scale = useRef(new Animated.Value(0.95)).current;
+  
+  const spinValue1 = useRef(new Animated.Value(0)).current;
+  const spinValue2 = useRef(new Animated.Value(0)).current;
+  const pulseValue = useRef(new Animated.Value(0.8)).current;
+  const opacityValue = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
+    // Clockwise spin for outer ring
+    const spin1 = Animated.loop(
+      Animated.timing(spinValue1, {
+        toValue: 1,
+        duration: 1500,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+        useNativeDriver: true,
+      })
+    );
+    // Counter-clockwise spin for inner ring
+    const spin2 = Animated.loop(
+      Animated.timing(spinValue2, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+        useNativeDriver: true,
+      })
+    );
+    // Pulse for central orb
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.5,
-          duration: 600,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
+        Animated.parallel([
+          Animated.timing(pulseValue, {
+            toValue: 1.2,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityValue, {
+            toValue: 1.0,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(pulseValue, {
+            toValue: 0.8,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityValue, {
+            toValue: 0.5,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
       ])
     );
+
+    spin1.start();
+    spin2.start();
     pulse.start();
-    return () => pulse.stop();
-  }, [opacity]);
 
-  useEffect(() => {
-    Animated.timing(scale, {
-      toValue: 1,
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [scale]);
+    return () => {
+      spin1.stop();
+      spin2.stop();
+      pulse.stop();
+    };
+  }, [spinValue1, spinValue2, pulseValue, opacityValue]);
 
-  const dotColor = colors.primary.main;
+  const rotate1 = spinValue1.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const rotate2 = spinValue2.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['360deg', '0deg'],
+  });
+
+  const size = fullScreen ? 120 : 36;
+  const strokeWidthOuter = fullScreen ? 4 : 3;
+  const strokeWidthInner = fullScreen ? 3 : 2.5;
 
   const content = (
-    <>
-      <Animated.Text
-        style={[styles.logoText, { color: colors.primary.main, opacity, transform: [{ scale }] }]}
+    <View style={styles.container}>
+      {/* Outer Ring */}
+      <Animated.View
+        style={[
+          styles.spinnerLayer,
+          {
+            width: size,
+            height: size,
+            transform: [{ rotate: rotate1 }],
+          },
+        ]}
       >
-        Ryx
-      </Animated.Text>
-      <View style={styles.dots}>
-        <AnimatedDot delay={0} dotColor={dotColor} />
-        <AnimatedDot delay={100} dotColor={dotColor} />
-        <AnimatedDot delay={200} dotColor={dotColor} />
-      </View>
-    </>
+        <Svg width={size} height={size} viewBox="0 0 100 100">
+          <Defs>
+            <LinearGradient id="outerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor={colors.primary.main} />
+              <Stop offset="50%" stopColor="#f59e0b" />
+              <Stop offset="100%" stopColor="transparent" />
+            </LinearGradient>
+          </Defs>
+          <Circle
+            cx="50"
+            cy="50"
+            r="42"
+            stroke="url(#outerGrad)"
+            strokeWidth={strokeWidthOuter * (100 / size)}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray="180 80"
+          />
+        </Svg>
+      </Animated.View>
+
+      {/* Inner Ring */}
+      <Animated.View
+        style={[
+          styles.spinnerLayer,
+          {
+            width: size * 0.75,
+            height: size * 0.75,
+            transform: [{ rotate: rotate2 }],
+          },
+        ]}
+      >
+        <Svg width={size * 0.75} height={size * 0.75} viewBox="0 0 100 100">
+          <Defs>
+            <LinearGradient id="innerGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+              <Stop offset="0%" stopColor="#7c3aed" />
+              <Stop offset="50%" stopColor="#10b981" />
+              <Stop offset="100%" stopColor="transparent" />
+            </LinearGradient>
+          </Defs>
+          <Circle
+            cx="50"
+            cy="50"
+            r="42"
+            stroke="url(#innerGrad)"
+            strokeWidth={strokeWidthInner * (100 / (size * 0.75))}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray="140 100"
+          />
+        </Svg>
+      </Animated.View>
+
+      {/* Pulsing Central Glow Orb */}
+      <Animated.View
+        style={[
+          styles.centerOrb,
+          {
+            width: size * 0.28,
+            height: size * 0.28,
+            borderRadius: (size * 0.28) / 2,
+            backgroundColor: colors.primary.main,
+            opacity: opacityValue,
+            transform: [{ scale: pulseValue }],
+            shadowColor: colors.primary.main,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.8,
+            shadowRadius: 10,
+            elevation: 5,
+          },
+        ]}
+      />
+    </View>
   );
 
   if (fullScreen) {
@@ -110,21 +205,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: {
-    fontSize: 36,
-    fontWeight: '800',
-    letterSpacing: 2,
+  container: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
   },
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 16,
+  spinnerLayer: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  dotBase: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    opacity: 0.6,
+  centerOrb: {
+    position: 'absolute',
   },
 });
 

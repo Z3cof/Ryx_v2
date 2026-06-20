@@ -20,7 +20,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 import { RyxLoader } from '../../components/RyxLoader';
 import { UserAvatar } from '../../components/UserAvatar';
-import { fetchDashboard } from '../../services/dashboard';
+import { fetchDashboard, type DashboardData } from '../../services/dashboard';
+import { getCachedData, getDashboardCacheKey } from '../../services/offlineStorage';
 import { clearAuthToken } from '../../services/authSession';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import type { AppearancePreference } from '../../contexts/AppearanceContext';
@@ -40,7 +41,8 @@ function makeParametresStyles(
   radius: typeof import('../../theme').radius,
   fontSize: typeof import('../../theme').fontSize,
   primary: any,
-  colors: typeof import('../../theme').colors
+  colors: typeof import('../../theme').colors,
+  isDark: boolean
 ) {
   const cardShadow = Platform.select({
     ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8 },
@@ -145,7 +147,7 @@ function makeParametresStyles(
       paddingVertical: spacing[4],
       marginBottom: spacing[4],
       borderWidth: 1,
-      borderColor: '#fecaca',
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#fecaca',
       ...cardShadow,
     },
     logoutText: { fontSize: fontSize.base, fontWeight: '700', color: '#b91c1c' },
@@ -246,13 +248,13 @@ function makeParametresStyles(
 export default function ParametresScreen() {
   const params = useLocalSearchParams<{ userId?: string; userName?: string }>();
   const insets = useSafeAreaInsets();
-  const { ui, preference, setPreference, colors, primary, spacing, radius, fontSize } = useAppTheme();
+  const { ui, preference, setPreference, colors, primary, spacing, radius, fontSize, isDark } = useAppTheme();
   const { languagePreference, setLanguagePreference, deviceLanguageCode } = useLocale();
   const { t } = useTranslation();
 
   const styles = useMemo(
-    () => makeParametresStyles(ui, spacing, radius, fontSize, primary, colors),
-    [ui, spacing, radius, fontSize, primary, colors]
+    () => makeParametresStyles(ui, spacing, radius, fontSize, primary, colors, isDark),
+    [ui, spacing, radius, fontSize, primary, colors, isDark]
   );
 
   const [loading, setLoading] = useState(!!params.userId);
@@ -319,6 +321,19 @@ export default function ParametresScreen() {
       setLoading(false);
       return;
     }
+    
+    // Try to load from cache immediately so it's already ready
+    try {
+      const cached = await getCachedData<DashboardData>(getDashboardCacheKey(userId));
+      if (cached) {
+        setUserName(cached.user?.name || params.userName || t('parametres.defaultUser'));
+        setEmail(cached.user?.email || '');
+        setAvatarUri(cached.user?.avatar ? cached.user.avatar : null);
+      }
+    } catch (err) {
+      console.warn('[Settings Cache] Failed to load profile cache:', err);
+    }
+
     setLoading(true);
     try {
       const data = await fetchDashboard(userId);
@@ -326,12 +341,14 @@ export default function ParametresScreen() {
       setEmail(data.user?.email || '');
       setAvatarUri(data.user?.avatar ? data.user.avatar : null);
     } catch {
-      setEmail('');
-      setAvatarUri(null);
+      if (!userName) {
+        setEmail('');
+        setAvatarUri(null);
+      }
     } finally {
       setLoading(false);
     }
-  }, [userId, params.userName, t]);
+  }, [userId, params.userName, t, userName]);
 
   useFocusEffect(
     useCallback(() => {
@@ -356,14 +373,6 @@ export default function ParametresScreen() {
 
   const gradientColors = ui.gradient as [string, string, string];
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <StatusBar style={ui.statusBar as StatusBarStyle} />
-        <RyxLoader fullScreen />
-      </View>
-    );
-  }
 
   if (!userId) {
     return (
@@ -394,13 +403,45 @@ export default function ParametresScreen() {
       <StatusBar style={ui.statusBar as StatusBarStyle} />
       <LinearGradient colors={gradientColors} style={StyleSheet.absoluteFill} locations={[0, 0.35, 1]} />
 
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: GRID_PADDING,
+        paddingTop: insets.top + spacing[3],
+        paddingBottom: spacing[2],
+      }}>
+        <Pressable
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace({ pathname: '/screen/accueil', params: { userId } });
+          }}
+          style={({ pressed }) => [
+            {
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            pressed && { opacity: 0.6 }
+          ]}
+        >
+          <Ionicons name="chevron-back" size={20} color={ui.textPrimary} />
+        </Pressable>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: ui.textTitle }}>
+          {t('parametres.pageTitle')}
+        </Text>
+        <View style={{ width: 36 }} />
+      </View>
+
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + spacing[6], paddingBottom: 120 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: spacing[3], paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.pageKicker}>{t('parametres.pageKicker')}</Text>
-        <Text style={styles.pageTitle}>{t('parametres.pageTitle')}</Text>
 
         <View style={styles.profileCard}>
           <View style={styles.profileAvatarWrap}>
