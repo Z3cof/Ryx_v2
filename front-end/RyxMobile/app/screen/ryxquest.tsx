@@ -204,6 +204,11 @@ export default function RyxQuestScreen() {
     });
   }, [quests, userId, loadData]);
 
+  const isCooldownActive = useMemo(() => {
+    if (!progress?.nextQuestGenerationAt) return false;
+    return new Date(progress.nextQuestGenerationAt).getTime() > Date.now();
+  }, [progress?.nextQuestGenerationAt]);
+
   // ── Generate ───────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!userId || generating) return;
@@ -420,30 +425,64 @@ export default function RyxQuestScreen() {
           </>
         ) : (
           <View style={[styles.emptyCard, { backgroundColor: CARD }]}>
-            <Text style={{ fontSize: 44, marginBottom: 12 }}>⚡</Text>
-            <Text style={[styles.emptyTitle, { color: TEXT }]}>Aucun défi actif</Text>
+            <Text style={{ fontSize: 44, marginBottom: 12 }}>{isCooldownActive ? '🏆' : '⚡'}</Text>
+            <Text style={[styles.emptyTitle, { color: TEXT }]}>
+              {isCooldownActive ? 'Félicitations !' : 'Aucun défi actif'}
+            </Text>
             <Text style={[styles.emptySub, { color: SUB }]}>
-              Rixy peut générer des défis financiers intelligents adaptés à tes habitudes !
+              {isCooldownActive
+                ? "Tu as accompli toutes tes quêtes. Rixy prépare de nouveaux défis personnalisés pour toi."
+                : "Rixy peut générer des défis financiers intelligents adaptés à tes habitudes !"}
             </Text>
           </View>
         )}
 
         {/* ── Generate CTA (manuel si besoin de quêtes supplémentaires) ─ */}
         {quests.length < 5 && (
-          <Pressable
-            style={({ pressed }) => [styles.generateBtn, pressed && { opacity: 0.88 }]}
-            onPress={handleGenerate}
-            disabled={generating}
-          >
-            {generating ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="sparkles" size={18} color="#fff" />
-                <Text style={styles.generateBtnText}>Générer d'autres défis avec Rixy</Text>
-              </>
-            )}
-          </Pressable>
+          isCooldownActive && progress?.nextQuestGenerationAt ? (
+            <View
+              style={[
+                styles.generateBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb',
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#d1d5db',
+                },
+              ]}
+            >
+              <Ionicons
+                name="hourglass-outline"
+                size={18}
+                color={isDark ? '#94a3b8' : '#6b7280'}
+              />
+              <Text style={[styles.generateBtnText, { color: isDark ? '#94a3b8' : '#6b7280' }]}>
+                Nouveaux défis disponibles dans {Math.ceil(
+                  (new Date(progress.nextQuestGenerationAt).getTime() - Date.now()) /
+                    (24 * 60 * 60 * 1000)
+                )} jour{Math.ceil(
+                  (new Date(progress.nextQuestGenerationAt).getTime() - Date.now()) /
+                    (24 * 60 * 60 * 1000)
+                ) > 1
+                  ? 's'
+                  : ''}
+              </Text>
+            </View>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.generateBtn, pressed && { opacity: 0.88 }]}
+              onPress={handleGenerate}
+              disabled={generating}
+            >
+              {generating ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="sparkles" size={18} color="#fff" />
+                  <Text style={styles.generateBtnText}>Générer d'autres défis avec Rixy</Text>
+                </>
+              )}
+            </Pressable>
+          )
         )}
 
         {/* ── Recently completed ────────────────────────────────────── */}

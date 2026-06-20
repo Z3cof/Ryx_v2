@@ -173,4 +173,101 @@ describe('Back-End RyxQuest Integration Tests', () => {
     const stillActive = await Quest.countDocuments({ userId, status: 'active' });
     expect(stillActive).toBeGreaterThan(0);
   });
+
+  it('should block manual generation and listQuests starter initialization when nextQuestGenerationAt is set in the future', async () => {
+    const UserProgress = require('../models/UserProgress');
+    let progress = await UserProgress.findOne({ userId });
+    if (!progress) {
+      progress = await UserProgress.create({ userId });
+    }
+    progress.nextQuestGenerationAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    await progress.save();
+
+    // Clean all active quests first to simulate zero active quests
+    await Quest.deleteMany({ userId });
+    
+    const listRes = await request(app)
+      .get(`/api/quests/${userId}`)
+      .set('Authorization', `Bearer ${authToken}`)
+      .expect(200);
+
+    expect(listRes.body.quests.length).toBe(0);
+    expect(listRes.body.progress.nextQuestGenerationAt).toBeDefined();
+
+    const genRes = await request(app)
+      .post(`/api/quests/${userId}/generate`)
+      .set('Authorization', `Bearer ${authToken}`)
+      .expect(400);
+
+    expect(genRes.body.error).toContain('Rixy se repose');
+  });
+
+  describe('AI Quest Generation', () => {
+    let originalFetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('should generate quests via service-ai when AI service returns 200 OK', async () => {
+      const mockAiQuests = {
+        quests: [
+          {
+            title: 'Économie Restau',
+            description: 'Réduis tes dépenses au restaurant ce mois-ci.',
+            type: 'limit_category',
+            targetCategory: 'Loisirs',
+            targetValue: 20000,
+            xpReward: 120,
+            difficulty: 'medium',
+            icon: '🍔',
+            expiresDays: 14
+          }
+        ],
+        message: 'Défi intelligent créé pour toi !'
+      };
+
+      global.fetch = jest.fn().mockImplementation(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockAiQuests),
+        })
+      );
+
+      await Quest.deleteMany({ userId });
+
+      const res = await request(app)
+        .post(`/api/quests/${userId}/generate`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(res.body.generated).toBe(1);
+      expect(res.body.quests[0].title).toBe('Économie Restau');
+      expect(res.body.quests[0].generatedByAi).toBe(true);
+      expect(res.body.quests[0].type).toBe('limit_category');
+      expect(res.body.quests[0].targetCategory).toBe('Loisirs');
+      expect(res.body.message).toBe('Défi intelligent créé pour toi !');
+    });
+
+    it('should fallback to static quest generation if service-ai is unreachable or returns error', async () => {
+      global.fetch = jest.fn().mockImplementation(() =>
+        Promise.reject(new Error('Connection refused'))
+      );
+
+      await Quest.deleteMany({ userId });
+
+      const res = await request(app)
+        .post(`/api/quests/${userId}/generate`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(res.body.generated).toBe(1);
+      expect(res.body.quests[0].title).toBe('Comptable de la semaine');
+      expect(res.body.quests[0].generatedByAi).toBe(true);
+    });
+  });
 });

@@ -28,6 +28,7 @@ export type UserQuestProgress = {
     minXp: number;
     maxXp: number | null;
   };
+  nextQuestGenerationAt?: string | null;
 };
 
 export type FetchQuestsResponse = {

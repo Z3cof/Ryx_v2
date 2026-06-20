@@ -32,6 +32,8 @@ const userProgressSchema = new mongoose.Schema(
     bestStreak: { type: Number, default: 0, min: 0 },
     /** Dernière date d'activité (pour le calcul du streak) */
     lastActiveDate: { type: String, default: null }, // 'YYYY-MM-DD'
+    /** Date de fin du cooldown pour la génération de nouvelles quêtes */
+    nextQuestGenerationAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

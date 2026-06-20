@@ -114,6 +114,30 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+class QuestGenerateRequest(BaseModel):
+    userId: str
+    locale: Literal["fr", "en"] = "fr"
+
+
+class QuestItem(BaseModel):
+    title: str = Field(..., max_length=120)
+    description: str = Field(..., max_length=500)
+    type: Literal["save_amount", "limit_category", "log_expenses", "reduce_expense", "custom"] = "custom"
+    targetCategory: Optional[str] = None
+    targetValue: float
+    xpReward: int = Field(..., ge=10, le=500)
+    difficulty: Literal["easy", "medium", "hard", "legendary"] = "medium"
+    icon: str
+    expiresDays: int
+
+
+class QuestGenerateResponse(BaseModel):
+    quests: List[QuestItem]
+    message: str
+
+
+
+
 def _app_guide(locale: str) -> str:
     if locale == "en":
         return (
@@ -548,6 +572,170 @@ async def chat(
 
     if last_err:
         raise HTTPException(status_code=429, detail=str(last_err)) from last_err
+    raise HTTPException(status_code=502, detail="Aucun modèle disponible.")
+
+
+def build_quest_system_prompt(locale: str) -> str:
+    if locale == "en":
+        return (
+            "You are Rixy, the financial assistant of the Ryx application.\n"
+            "Your task is to analyze the user's financial context (balance, budgets, categories, recent transactions, etc.) "
+            "and generate 3 personalized, realistic, and motivating financial quests (challenges) for the user.\n"
+            "The goal is to help them save money, control their expenses, or adopt better financial habits.\n"
+            "You must return ONLY a JSON object containing a 'quests' array and a 'message' string.\n"
+            "Each quest in the array must strictly match the following schema:\n"
+            "{\n"
+            "  \"title\": \"Short and catchy title (e.g. 'Food Budget Control')\",\n"
+            "  \"description\": \"Detailed, motivating explanation customized to their actual habits.\",\n"
+            "  \"type\": \"save_amount\" | \"limit_category\" | \"log_expenses\" | \"reduce_expense\" | \"custom\",\n"
+            "  \"targetCategory\": \"Name of category or null if not applicable (must match one of their categories or standard ones like Alimentation, Transport, Loisirs, Shopping, Logement, Factures, Sante, Divers, Education, Epargne)\",\n"
+            "  \"targetValue\": numeric value (amount to save, limit for spending, or count of transactions to log),\n"
+            "  \"xpReward\": reward points from 10 to 500 (higher for harder quests),\n"
+            "  \"difficulty\": \"easy\" | \"medium\" | \"hard\" | \"legendary\",\n"
+            "  \"icon\": a single relevant emoji (e.g. 🍔, 🚗, 💰, 📊, 🛍️),\n"
+            "  \"expiresDays\": integer number of days the challenge is valid (usually 7 for weekly/simple quests, or 30 for monthly ones)\n"
+            "}\n"
+            "Constraints:\n"
+            "1. Be realistic: target values must be based on their actual numbers (e.g. if they spend 50 000 XOF in Alimentation, a limit of 40 000 XOF is realistic, not 500 XOF).\n"
+            "2. Make the message short, enthusiastic, and summarizing why you chose these challenges.\n"
+            "3. Return ONLY a valid JSON object. No markdown, no backticks, no code fence block. Output raw JSON."
+        )
+    else:
+        return (
+            "Tu es Rixy, l'assistant financier intelligent de l'application Ryx.\n"
+            "Ton rôle est d'analyser le contexte financier de l'utilisateur (solde, budgets, catégories, transactions récentes) "
+            "et de générer 3 défis (quêtes) financiers personnalisés, réalistes et motivants.\n"
+            "Le but est de l'aider à épargner, à limiter ses dépenses superflues ou à structurer son budget.\n"
+            "Tu dois renvoyer UNIQUEMENT un objet JSON contenant un tableau 'quests' et un texte 'message'.\n"
+            "Chaque défi du tableau doit respecter strictement le format suivant :\n"
+            "{\n"
+            "  \"title\": \"Titre court et dynamique (ex: 'Maîtrise du Resto' ou 'Défi Épargne Express')\",\n"
+            "  \"description\": \"Description motivante expliquant pourquoi ce défi est pertinent par rapport à ses dépenses.\",\n"
+            "  \"type\": \"save_amount\" | \"limit_category\" | \"log_expenses\" | \"reduce_expense\" | \"custom\",\n"
+            "  \"targetCategory\": \"Nom de la catégorie ciblée ou null si inapplicable (ex: Alimentation, Transport, Loisirs, Shopping, Logement, Factures, Santé, Divers, Éducation, Épargne)\",\n"
+            "  \"targetValue\": valeur numérique cible (montant à épargner, plafond de dépenses à ne pas dépasser, ou nombre de transactions à enregistrer),\n"
+            "  \"xpReward\": points d'XP entre 10 et 500 (selon la difficulté),\n"
+            "  \"difficulty\": \"easy\" | \"medium\" | \"hard\" | \"legendary\",\n"
+            "  \"icon\": un emoji pertinent unique (ex: 🍔, 🚗, 💰, 📊, 🛍️),\n"
+            "  \"expiresDays\": nombre entier de jours de validité (généralement 7 pour des défis hebdomadaires/simples, ou 30 pour des défis mensuels)\n"
+            "}\n"
+            "Directives importantes :\n"
+            "1. Réalisme : les valeurs cibles doivent être proportionnelles à l'historique financier de l'utilisateur (ex: si le top catégorie Alimentation est de 50 000 XOF, proposer une limite à 40 000 XOF, pas à 500 XOF).\n"
+            "2. Le message doit être court, chaleureux, encourageant et expliquer brièvement le choix de ces défis.\n"
+            "3. Renvoyer UNIQUEMENT du JSON brut. Aucun bloc markdown (pas de ```json), aucun texte avant ou après."
+        )
+
+
+@app.post("/api/quests/generate", response_model=QuestGenerateResponse)
+async def generate_quests(
+    request: Request,
+    req: QuestGenerateRequest,
+    x_ryx_ai_secret: Annotated[Optional[str], Header(alias="X-Ryx-Ai-Secret")] = None,
+) -> QuestGenerateResponse:
+    limit = int(os.getenv("AI_RATE_LIMIT_CHAT_MAX", "30"))
+    window_s = int(os.getenv("AI_RATE_LIMIT_CHAT_WINDOW_S", "600"))
+    ip = (getattr(request.client, "host", None) or "unknown").strip()
+    _rate_check(f"quests:{ip}", limit=limit, window_s=window_s)
+
+    if RYX_AI_SERVICE_SECRET and (x_ryx_ai_secret or "").strip() != RYX_AI_SERVICE_SECRET:
+        raise HTTPException(
+            status_code=401,
+            detail="En-tête X-Ryx-Ai-Secret manquant ou invalide.",
+        )
+
+    _ensure_gemini_configured()
+
+    uid = req.userId.strip()
+    if not uid:
+        raise HTTPException(status_code=400, detail="userId est requis")
+
+    ctx = await run_in_threadpool(build_user_finance_context, uid, req.locale)
+    system_prompt = build_quest_system_prompt(req.locale)
+    if ctx:
+        system_prompt = f"{ctx}\n{system_prompt}"
+
+    generation_config = {
+        "temperature": 0.5,
+        "max_output_tokens": 1500,
+        "response_mime_type": "application/json",
+    }
+
+    last_err: Optional[BaseException] = None
+    import json
+
+    for attempt_model in MODELS_TO_TRY:
+        try:
+            response = _generate(
+                attempt_model,
+                system_prompt,
+                [],
+                "Génère mes défis financiers personnalisés maintenant.",
+                generation_config,
+            )
+        except Exception as e:
+            last_err = e
+            if _should_try_next_model(e) and attempt_model != MODELS_TO_TRY[-1]:
+                continue
+            status = 429 if _is_quota_error(e) else 502
+            raise HTTPException(
+                status_code=status,
+                detail=f"Erreur API Gemini ({attempt_model}): {e}",
+            ) from e
+
+        reply = _extract_reply(response)
+        if not reply:
+            raise HTTPException(status_code=502, detail="Réponse Gemini vide ou bloquée.")
+
+        clean_reply = reply.strip()
+        if clean_reply.startswith("```"):
+            lines = clean_reply.splitlines()
+            if len(lines) >= 2:
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                clean_reply = "\n".join(lines).strip()
+
+        try:
+            parsed = json.loads(clean_reply)
+            if "quests" not in parsed:
+                raise ValueError("Clé 'quests' manquante dans le JSON généré")
+            if not isinstance(parsed["quests"], list):
+                raise ValueError("La clé 'quests' doit être une liste")
+            
+            quests_list = []
+            for item in parsed["quests"]:
+                quests_list.append(
+                    QuestItem(
+                        title=item.get("title", "Défi Ryx"),
+                        description=item.get("description", ""),
+                        type=item.get("type", "custom"),
+                        targetCategory=item.get("targetCategory"),
+                        targetValue=float(item.get("targetValue", 0)),
+                        xpReward=int(item.get("xpReward", 50)),
+                        difficulty=item.get("difficulty", "medium"),
+                        icon=item.get("icon", "⚡"),
+                        expiresDays=int(item.get("expiresDays", 7))
+                    )
+                )
+
+            return QuestGenerateResponse(
+                quests=quests_list,
+                message=parsed.get("message", "Voici tes nouveaux défis !")
+            )
+
+        except Exception as json_err:
+            print(f"[Ryx AI] JSON parsing/validation error: {json_err}. Raw text: {reply}")
+            last_err = json_err
+            if attempt_model != MODELS_TO_TRY[-1]:
+                continue
+            raise HTTPException(
+                status_code=502,
+                detail=f"Réponse Gemini non conforme au format JSON attendu : {json_err}",
+            )
+
+    if last_err:
+        raise HTTPException(status_code=429, detail=str(last_err))
     raise HTTPException(status_code=502, detail="Aucun modèle disponible.")
 
 
