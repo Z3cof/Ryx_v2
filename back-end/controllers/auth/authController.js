@@ -4,6 +4,7 @@ const User = require('../../models/User');
 const { normalizeAndValidate } = require('../../utils/phoneE164');
 const { consumeRegisterToken } = require('../../utils/otpStore');
 const { signUserToken } = require('../../utils/jwt');
+const { notifyNouvelleConnexion } = require('../../services/ryxNotifications');
 
 
 /**
@@ -112,6 +113,10 @@ async function login(req, res) {
   const obj = user.toObject();
   delete obj.password;
   const token = signUserToken(user._id);
+
+  // Notification de sécurité : nouvelle connexion (fire-and-forget)
+  notifyNouvelleConnexion(user._id).catch(() => {});
+
   res.status(200).json({ user: obj, message: 'Connexion réussie.', token });
 }
 

@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
     isMerchant: { type: Boolean, default: false }, // devient true si user est commercant
     /** Data URL (base64) image/jpeg|png|webp — utilisée comme photo de profil */
     avatar: { type: String, default: '', maxlength: 600000 },
+    pushToken: { type: String, default: null },
   },
   { timestamps: true }
 );

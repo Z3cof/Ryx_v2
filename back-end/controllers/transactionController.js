@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
+const MonthlyBudget = require('../models/MonthlyBudget');
 const { getExpectedCurrencyForUserId } = require('../utils/userCurrency');
+const { notifyBudget80, notifyBudgetDepasse } = require('../services/ryxNotifications');
 
 
 function parseBookingDate(raw) {
@@ -109,6 +111,39 @@ async function _updateQuestProgress(userId) {
 }
 
 /**
+ * Vérifie si le budget mensuel a été atteint à 80% ou dépassé,
+ * et envoie la notification push correspondante.
+ */
+async function _checkBudgetAndNotify(userId, transactionDate) {
+  const ref = transactionDate || new Date();
+  const year = ref.getUTCFullYear();
+  const month = ref.getUTCMonth() + 1;
+
+  const oid = mongoose.Types.ObjectId.isValid(userId)
+    ? new mongoose.Types.ObjectId(userId)
+    : null;
+  if (!oid) return;
+
+  const budget = await MonthlyBudget.findOne({ userId: oid, year, month }).lean();
+  if (!budget || !budget.amount) return;
+
+  const startOfMonth = new Date(Date.UTC(year, month - 1, 1));
+  const agg = await Transaction.aggregate([
+    { $match: { userId: oid, type: 'out', createdAt: { $gte: startOfMonth } } },
+    { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } },
+  ]);
+  const totalDepenses = agg[0]?.total ?? 0;
+  const budgetAmt = budget.amount;
+  const pourcentage = (totalDepenses / budgetAmt) * 100;
+
+  if (pourcentage >= 100) {
+    await notifyBudgetDepasse(userId, Math.round(totalDepenses - budgetAmt));
+  } else if (pourcentage >= 80) {
+    await notifyBudget80(userId, Math.round(budgetAmt - totalDepenses));
+  }
+}
+
+/**
  * POST /api/transactions
  * Body: { userId, title, amount, currency?, category?, description?, type?, date? }
  * date: optionnel, ISO ou YYYY-MM-DD (jour de l’opération).
@@ -166,6 +201,11 @@ async function createExpense(req, res) {
 
   // Mise à jour automatique de la progression des quêtes actives
   await _updateQuestProgress(userId).catch(() => {});
+
+  // Vérification du budget (fire-and-forget) uniquement pour les dépenses
+  if (!isIncome) {
+    _checkBudgetAndNotify(userId, doc.createdAt).catch(() => {});
+  }
 
   res.status(201).json({
     id: doc._id.toString(),

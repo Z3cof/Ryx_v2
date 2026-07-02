@@ -12,6 +12,7 @@ const userRoutes = require('./routes/users');
 const recurringRoutes = require('./routes/recurring');
 const questRoutes = require('./routes/quests');
 const projectRoutes = require('./routes/projects');
+const notificationRoutes = require('./routes/notifications');
 
 // override: false → les variables déjà définies (ex: Render env vars) ont la priorité sur le .env local
 dotenv.config({ override: false });
@@ -98,6 +99,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/recurring', recurringRoutes);
 app.use('/api/quests', questRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use((req, res) => {
   console.warn('[404 Ryx API]', req.method, req.originalUrl);

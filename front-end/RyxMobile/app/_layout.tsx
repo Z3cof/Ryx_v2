@@ -10,6 +10,7 @@ import { AppearanceProvider } from '@/contexts/AppearanceContext';
 import { LocaleProvider } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { OfflineStatusBanner } from '@/components/OfflineStatusBanner';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 export {
   ErrorBoundary,
@@ -20,6 +21,8 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  usePushNotifications();
+
   useEffect(() => {
     LogBox.ignoreLogs([
       'Sending `onAnimatedValueUpdate` with no listeners registered.',

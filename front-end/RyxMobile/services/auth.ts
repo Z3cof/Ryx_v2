@@ -340,3 +340,18 @@ export async function deleteAccount(userId: string, password: string): Promise<{
     body: JSON.stringify({ password }),
   });
 }
+
+/**
+ * Enregistre le token push Expo sur le backend pour activer les notifications.
+ * Silencieux en cas d'erreur (ne bloque pas l'utilisateur).
+ */
+export async function savePushToken(pushToken: string): Promise<void> {
+  try {
+    await apiFetch('/api/notifications/register-token', {
+      method: 'POST',
+      body: JSON.stringify({ pushToken }),
+    });
+  } catch (err) {
+    if (__DEV__) console.warn('[Ryx Push] Impossible d\'enregistrer le push token:', err);
+  }
+}
