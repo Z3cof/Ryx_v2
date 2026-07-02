@@ -2,11 +2,6 @@ const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const { getExpectedCurrencyForUserId } = require('../utils/userCurrency');
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
 
 function parseBookingDate(raw) {
   if (raw == null || raw === '') return null;
@@ -49,12 +44,12 @@ async function _updateQuestProgress(userId) {
   startOfWeek.setUTCDate(now.getUTCDate() - daysToMonday);
   startOfWeek.setUTCHours(0, 0, 0, 0);
 
-  for (const quest of activeQuests) {
+  const promises = activeQuests.map(async (quest) => {
     // Ignorer les quêtes expirées
     if (quest.expiresAt && quest.expiresAt < now) {
       quest.status = 'expired';
       await quest.save();
-      continue;
+      return;
     }
 
     let newValue = quest.currentValue;
@@ -108,7 +103,9 @@ async function _updateQuestProgress(userId) {
       quest.currentValue = newValue;
       await quest.save();
     }
-  }
+  });
+
+  await Promise.all(promises);
 }
 
 /**
@@ -130,12 +127,12 @@ async function createExpense(req, res) {
   } = req.body;
 
   if (!userId || !title || amount == null || amount === '') {
-    return sendJson(res, 400, { error: 'userId, title et amount sont requis.' });
+    return res.status(400).json({ error: 'userId, title et amount sont requis.' });
   }
 
   const numAmount = Number(amount);
   if (Number.isNaN(numAmount) || numAmount <= 0) {
-    return sendJson(res, 400, { error: 'amount doit être un nombre positif.' });
+    return res.status(400).json({ error: 'amount doit être un nombre positif.' });
   }
 
   const oid = mongoose.Types.ObjectId.isValid(userId)
@@ -170,7 +167,7 @@ async function createExpense(req, res) {
   // Mise à jour automatique de la progression des quêtes actives
   await _updateQuestProgress(userId).catch(() => {});
 
-  sendJson(res, 201, {
+  res.status(201).json({
     id: doc._id.toString(),
     title: doc.title,
     amount: doc.amount,
@@ -188,17 +185,17 @@ async function createExpense(req, res) {
 async function updateTransaction(req, res) {
   const { transactionId } = req.params;
   if (!transactionId || !mongoose.Types.ObjectId.isValid(transactionId)) {
-    return sendJson(res, 400, { error: 'transactionId invalide.' });
+    return res.status(400).json({ error: 'transactionId invalide.' });
   }
   const authUserId = req.authUserId;
   if (!authUserId || !mongoose.Types.ObjectId.isValid(authUserId)) {
-    return sendJson(res, 401, { error: 'Session invalide.' });
+    return res.status(401).json({ error: 'Session invalide.' });
   }
   const userOid = new mongoose.Types.ObjectId(authUserId);
 
   const doc = await Transaction.findOne({ _id: transactionId, userId: userOid });
   if (!doc) {
-    return sendJson(res, 404, { error: 'Transaction introuvable.' });
+    return res.status(404).json({ error: 'Transaction introuvable.' });
   }
 
   const {
@@ -212,13 +209,13 @@ async function updateTransaction(req, res) {
 
   if (title != null) {
     const t = String(title).trim();
-    if (!t) return sendJson(res, 400, { error: 'title invalide.' });
+    if (!t) return res.status(400).json({ error: 'title invalide.' });
     doc.title = t;
   }
   if (amount != null && amount !== '') {
     const n = Number(amount);
     if (!Number.isFinite(n) || n <= 0) {
-      return sendJson(res, 400, { error: 'amount doit être un nombre positif.' });
+      return res.status(400).json({ error: 'amount doit être un nombre positif.' });
     }
     doc.amount = doc.type === 'in' ? Math.abs(n) : -Math.abs(n);
   }
@@ -235,7 +232,7 @@ async function updateTransaction(req, res) {
   }
   if (dateRaw != null && dateRaw !== '') {
     const booking = parseBookingDate(dateRaw);
-    if (!booking) return sendJson(res, 400, { error: 'date invalide.' });
+    if (!booking) return res.status(400).json({ error: 'date invalide.' });
     doc.createdAt = booking;
   }
 
@@ -244,7 +241,7 @@ async function updateTransaction(req, res) {
   // Mise à jour automatique de la progression des quêtes actives
   await _updateQuestProgress(authUserId).catch(() => {});
 
-  sendJson(res, 200, {
+  res.status(200).json({
     id: doc._id.toString(),
     title: doc.title,
     amount: doc.amount,
@@ -262,23 +259,23 @@ async function updateTransaction(req, res) {
 async function deleteTransaction(req, res) {
   const { transactionId } = req.params;
   if (!transactionId || !mongoose.Types.ObjectId.isValid(transactionId)) {
-    return sendJson(res, 400, { error: 'transactionId invalide.' });
+    return res.status(400).json({ error: 'transactionId invalide.' });
   }
   const authUserId = req.authUserId;
   if (!authUserId || !mongoose.Types.ObjectId.isValid(authUserId)) {
-    return sendJson(res, 401, { error: 'Session invalide.' });
+    return res.status(401).json({ error: 'Session invalide.' });
   }
   const userOid = new mongoose.Types.ObjectId(authUserId);
 
   const result = await Transaction.deleteOne({ _id: transactionId, userId: userOid });
   if (result.deletedCount === 0) {
-    return sendJson(res, 404, { error: 'Transaction introuvable.' });
+    return res.status(404).json({ error: 'Transaction introuvable.' });
   }
 
   // Mise à jour automatique de la progression des quêtes actives
   await _updateQuestProgress(authUserId).catch(() => {});
 
-  sendJson(res, 200, { ok: true });
+  res.status(200).json({ ok: true });
 }
 
 module.exports = { createExpense, updateTransaction, deleteTransaction };

@@ -8,11 +8,6 @@ const mongoose = require('mongoose');
 const { getExpectedCurrencyForUserId, formatMoneyFr } = require('../utils/userCurrency');
 const { ensureRecurringForUserMonth } = require('../services/recurringEnsure');
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
 
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -24,12 +19,12 @@ const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Jui
 async function getSummary(req, res) {
   const userId = req.params.userId;
   if (!userId) {
-    return sendJson(res, 400, { error: 'userId requis.' });
+    return res.status(400).json({ error: 'userId requis.' });
   }
 
   const objectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
   if (!objectId) {
-    return sendJson(res, 400, { error: 'userId invalide.' });
+    return res.status(400).json({ error: 'userId invalide.' });
   }
 
   const now = new Date();
@@ -77,7 +72,7 @@ async function getSummary(req, res) {
     count: m.count || 0,
   }));
 
-  sendJson(res, 200, {
+  res.status(200).json({
     currentMonthTotal: currentMonthTotal ?? 0,
     currentYearTotal: currentYearTotal ?? 0,
     monthlyBreakdown: byMonth,
@@ -94,12 +89,12 @@ async function getIncomeByMonth(req, res) {
   const month = parseInt(req.query.month, 10);
 
   if (!userId) {
-    return sendJson(res, 400, { error: 'userId requis.' });
+    return res.status(400).json({ error: 'userId requis.' });
   }
 
   const objectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
   if (!objectId) {
-    return sendJson(res, 400, { error: 'userId invalide.' });
+    return res.status(400).json({ error: 'userId invalide.' });
   }
 
   const y = Number.isNaN(year) ? new Date().getFullYear() : year;
@@ -146,7 +141,7 @@ async function getIncomeByMonth(req, res) {
     };
   };
 
-  sendJson(res, 200, {
+  res.status(200).json({
     year: y,
     month: m,
     monthLabel: `${MONTH_NAMES[m - 1]} ${y}`,
@@ -165,12 +160,12 @@ async function getByMonth(req, res) {
   const month = parseInt(req.query.month, 10);
 
   if (!userId) {
-    return sendJson(res, 400, { error: 'userId requis.' });
+    return res.status(400).json({ error: 'userId requis.' });
   }
 
   const objectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
   if (!objectId) {
-    return sendJson(res, 400, { error: 'userId invalide.' });
+    return res.status(400).json({ error: 'userId invalide.' });
   }
 
   const y = Number.isNaN(year) ? new Date().getFullYear() : year;
@@ -217,7 +212,7 @@ async function getByMonth(req, res) {
     };
   };
 
-  sendJson(res, 200, {
+  res.status(200).json({
     year: y,
     month: m,
     monthLabel: `${MONTH_NAMES[m - 1]} ${y}`,
@@ -235,17 +230,17 @@ async function getThreshold(req, res) {
   const year = parseInt(req.query.year, 10);
   const month = parseInt(req.query.month, 10);
 
-  if (!userId) return sendJson(res, 400, { error: 'userId requis.' });
+  if (!userId) return res.status(400).json({ error: 'userId requis.' });
   const objectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
-  if (!objectId) return sendJson(res, 400, { error: 'userId invalide.' });
+  if (!objectId) return res.status(400).json({ error: 'userId invalide.' });
 
   const y = Number.isNaN(year) ? new Date().getFullYear() : year;
   const m = Number.isNaN(month) ? new Date().getMonth() + 1 : month;
-  if (m < 1 || m > 12) return sendJson(res, 400, { error: 'Mois invalide.' });
+  if (m < 1 || m > 12) return res.status(400).json({ error: 'Mois invalide.' });
 
   const doc = await MonthlyBudget.findOne({ userId: objectId, year: y, month: m }).lean();
   const primaryCur = await getExpectedCurrencyForUserId(objectId);
-  sendJson(res, 200, {
+  res.status(200).json({
     year: y,
     month: m,
     amount: doc ? doc.amount : null,
@@ -262,9 +257,9 @@ async function setThreshold(req, res) {
   const userId = req.params.userId;
   const { year, month, amount, currency: rawCurrency } = req.body;
 
-  if (!userId) return sendJson(res, 400, { error: 'userId requis.' });
+  if (!userId) return res.status(400).json({ error: 'userId requis.' });
   const objectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
-  if (!objectId) return sendJson(res, 400, { error: 'userId invalide.' });
+  if (!objectId) return res.status(400).json({ error: 'userId invalide.' });
 
   const defaultCur = await getExpectedCurrencyForUserId(objectId);
   const currency = String(rawCurrency || defaultCur).trim() || defaultCur;
@@ -272,11 +267,11 @@ async function setThreshold(req, res) {
   const y = parseInt(year, 10);
   const m = parseInt(month, 10);
   if (Number.isNaN(y) || Number.isNaN(m) || m < 1 || m > 12) {
-    return sendJson(res, 400, { error: 'Année et mois invalides.' });
+    return res.status(400).json({ error: 'Année et mois invalides.' });
   }
   const numAmount = Number(amount);
   if (Number.isNaN(numAmount) || numAmount < 0) {
-    return sendJson(res, 400, { error: 'Montant invalide (nombre >= 0).' });
+    return res.status(400).json({ error: 'Montant invalide (nombre >= 0).' });
   }
 
   const doc = await MonthlyBudget.findOneAndUpdate(
@@ -285,7 +280,7 @@ async function setThreshold(req, res) {
     { new: true, upsert: true }
   ).lean();
 
-  sendJson(res, 200, { year: doc.year, month: doc.month, amount: doc.amount, currency: doc.currency });
+  res.status(200).json({ year: doc.year, month: doc.month, amount: doc.amount, currency: doc.currency });
 }
 
 module.exports = { getSummary, getByMonth, getIncomeByMonth, getThreshold, setThreshold };

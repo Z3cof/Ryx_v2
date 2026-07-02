@@ -126,7 +126,7 @@ export default function EstVendeurScreen() {
         </View>
         <Text style={styles.title}>Bienvenue dans RyxQuest ! ⚡</Text>
         <Text style={styles.subtitle}>
-          Ryx intègre désormais RyxQuest, un système intelligent de défis financiers personnalisés pour vous aider à épargner et optimiser votre budget de façon ludique !
+          Ryx intègre RyxQuest, un système intelligent de défis financiers personnalisés pour vous aider à épargner et optimiser votre budget de façon ludique !
         </Text>
         <View style={styles.buttons}>
           <Pressable

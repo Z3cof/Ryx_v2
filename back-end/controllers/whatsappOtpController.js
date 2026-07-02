@@ -15,11 +15,6 @@ function isValidEmailShape(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
 
 /**
  * POST /api/auth/whatsapp-otp/validate-phone
@@ -29,13 +24,13 @@ function sendJson(res, status, data) {
 async function validatePhone(req, res) {
   const phoneE164 = normalizeAndValidate(req.body?.phoneE164);
   if (!phoneE164) {
-    return sendJson(res, 400, { error: 'Numéro de téléphone invalide.' });
+    return res.status(400).json({ error: 'Numéro de téléphone invalide.' });
   }
   const phoneTaken = await User.findOne({ phoneE164 }).select('_id').lean();
   if (phoneTaken) {
-    return sendJson(res, 409, { error: 'Ce numéro est déjà enregistré.', code: 'PHONE_TAKEN' });
+    return res.status(409).json({ error: 'Ce numéro est déjà enregistré.', code: 'PHONE_TAKEN' });
   }
-  sendJson(res, 200, { ok: true, phoneE164 });
+  res.status(200).json({ ok: true, phoneE164 });
 }
 
 /**
@@ -46,18 +41,18 @@ async function validatePhone(req, res) {
 async function sendOtp(req, res) {
   const phoneE164 = normalizeAndValidate(req.body?.phoneE164);
   if (!phoneE164) {
-    return sendJson(res, 400, { error: 'Numéro de téléphone invalide.', code: 'PHONE_INVALID' });
+    return res.status(400).json({ error: 'Numéro de téléphone invalide.', code: 'PHONE_INVALID' });
   }
 
   const rawEmail = req.body?.email != null ? String(req.body.email).trim() : '';
   if (rawEmail) {
     const email = rawEmail.toLowerCase();
     if (!isValidEmailShape(email)) {
-      return sendJson(res, 400, { error: 'Email invalide.', code: 'EMAIL_INVALID' });
+      return res.status(400).json({ error: 'Email invalide.', code: 'EMAIL_INVALID' });
     }
     const emailTaken = await User.findOne({ email }).lean();
     if (emailTaken) {
-      return sendJson(res, 409, {
+      return res.status(409).json({
         error: 'Un compte existe déjà avec cet email.',
         code: 'EMAIL_TAKEN',
       });
@@ -66,11 +61,11 @@ async function sendOtp(req, res) {
 
   const phoneTaken = await User.findOne({ phoneE164 }).select('_id').lean();
   if (phoneTaken) {
-    return sendJson(res, 409, { error: 'Ce numéro est déjà enregistré.', code: 'PHONE_TAKEN' });
+    return res.status(409).json({ error: 'Ce numéro est déjà enregistré.', code: 'PHONE_TAKEN' });
   }
 
   if (!canResend(phoneE164)) {
-    return sendJson(res, 429, {
+    return res.status(429).json({
       error: `Attendez ${Math.ceil(RESEND_COOLDOWN_MS / 1000)} secondes avant un nouvel envoi.`,
     });
   }
@@ -89,7 +84,7 @@ async function sendOtp(req, res) {
     }
   } catch (e) {
     console.error('[OTP WhatsApp]', e.message || e);
-    return sendJson(res, 502, {
+    return res.status(502).json({
       error: "Impossible d'envoyer le message WhatsApp. Réessayez plus tard.",
     });
   }
@@ -99,7 +94,7 @@ async function sendOtp(req, res) {
   if (result.mock && (process.env.NODE_ENV !== 'production' || isWhatsappMockEnabled())) {
     body.devOtp = code;
   }
-  sendJson(res, 200, body);
+  res.status(200).json(body);
 }
 
 /**
@@ -109,20 +104,20 @@ async function sendOtp(req, res) {
 async function verifyOtp(req, res) {
   const phoneE164 = normalizeAndValidate(req.body?.phoneE164);
   if (!phoneE164) {
-    return sendJson(res, 400, { error: 'Numéro de téléphone invalide.' });
+    return res.status(400).json({ error: 'Numéro de téléphone invalide.' });
   }
 
   const code = String(req.body?.code || '').trim().replace(/\s/g, '');
   if (!/^\d{6}$/.test(code)) {
-    return sendJson(res, 400, { error: 'Code à 6 chiffres requis.' });
+    return res.status(400).json({ error: 'Code à 6 chiffres requis.' });
   }
 
   if (!verifyAndConsumeOtp(phoneE164, code)) {
-    return sendJson(res, 400, { error: 'Code incorrect ou expiré.' });
+    return res.status(400).json({ error: 'Code incorrect ou expiré.' });
   }
 
   const verificationToken = issueRegisterToken(phoneE164);
-  sendJson(res, 200, { ok: true, verificationToken });
+  res.status(200).json({ ok: true, verificationToken });
 }
 
 module.exports = { validatePhone, sendOtp, verifyOtp };

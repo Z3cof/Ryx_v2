@@ -109,7 +109,13 @@ app.use((err, req, res, next) => {
   console.error(err);
   if (!res.headersSent) {
     res.setHeader('Content-Type', 'application/json');
-    res.status(500).send(JSON.stringify({ error: 'Erreur serveur' }));
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).send(
+      JSON.stringify({
+        error: 'Erreur serveur',
+        ...(isDev ? { details: err.message } : {}),
+      })
+    );
   }
 });
 

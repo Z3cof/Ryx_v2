@@ -6,10 +6,6 @@ function asyncHandler(fn) {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch((err) => {
       console.error('asyncHandler:', err);
-      if (!res.headersSent) {
-        res.setHeader('Content-Type', 'application/json');
-        res.status(500).send(JSON.stringify({ error: 'Erreur serveur', details: err.message }));
-      }
       next(err);
     });
   };

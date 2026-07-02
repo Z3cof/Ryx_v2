@@ -8,11 +8,6 @@ const { getCurrencyForCountryIso } = require('../utils/countryCurrency');
 const { resolveCountryIsoFromUserDoc } = require('../utils/userCurrency');
 const { ensureRecurringForUserMonth } = require('../services/recurringEnsure');
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
 
 /**
  * GET /api/dashboard/:userId
@@ -21,14 +16,14 @@ function sendJson(res, status, data) {
 async function getDashboard(req, res) {
   const { userId } = req.params;
   if (!userId) {
-    return sendJson(res, 400, { error: 'userId requis.' });
+    return res.status(400).json({ error: 'userId requis.' });
   }
 
   const user = await User.findById(userId)
     .select('name email isMerchant avatar countryIso phoneE164')
     .lean();
   if (!user) {
-    return sendJson(res, 404, { error: 'Utilisateur introuvable.' });
+    return res.status(404).json({ error: 'Utilisateur introuvable.' });
   }
 
   const resolvedIso = resolveCountryIsoFromUserDoc(user);
@@ -194,7 +189,7 @@ async function getDashboard(req, res) {
     category: t.category || 'Autre',
   });
 
-  sendJson(res, 200, {
+  res.status(200).json({
     user: {
       name: user.name,
       email: user.email,

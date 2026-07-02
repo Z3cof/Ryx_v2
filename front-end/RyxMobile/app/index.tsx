@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { fetchSessionUser } from '../services/auth';
-import { clearAuthToken, getAuthToken } from '../services/authSession';
+import { clearAuthToken, getPersistedAuthToken, getCachedUser, setCachedUser, clearCachedUser } from '../services/authSession';
 
 const { width } = Dimensions.get('window');
 
@@ -184,17 +184,49 @@ export default function LandingScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const token = await getAuthToken();
-        if (!token) return;
-        const { user } = await fetchSessionUser();
-        if (cancelled) return;
-        router.replace({
-          pathname: '/screen/accueil',
-          params: { userId: user._id, userName: user.name || '' },
-        });
-      } catch {
+        const token = await getPersistedAuthToken();
+        if (!token) {
+          setSessionBooting(false);
+          return;
+        }
+
+        const cachedUser = await getCachedUser();
+
+        try {
+          const { user } = await fetchSessionUser();
+          await setCachedUser(user);
+          if (cancelled) return;
+          router.replace({
+            pathname: '/screen/accueil',
+            params: { userId: user._id, userName: user.name || '' },
+          });
+        } catch (fetchErr) {
+          const errMsg = fetchErr instanceof Error ? fetchErr.message : '';
+          const isNetworkError =
+            errMsg.includes('réseau') ||
+            errMsg.includes('serveur injoignable') ||
+            errMsg.includes('Délai dépassé') ||
+            errMsg.includes('Network') ||
+            errMsg.includes('timeout') ||
+            errMsg.includes('fetch');
+
+          if (isNetworkError && cachedUser) {
+            if (cancelled) return;
+            console.log('[Offline Boot] network issue. Loading cached user:', cachedUser._id);
+            router.replace({
+              pathname: '/screen/accueil',
+              params: { userId: cachedUser._id, userName: cachedUser.name || '' },
+            });
+          } else {
+            // genuine auth failure or no cache, clear session
+            await clearAuthToken();
+            await clearCachedUser();
+            if (!cancelled) setSessionBooting(false);
+          }
+        }
+      } catch (err) {
         await clearAuthToken();
-      } finally {
+        await clearCachedUser();
         if (!cancelled) setSessionBooting(false);
       }
     })();

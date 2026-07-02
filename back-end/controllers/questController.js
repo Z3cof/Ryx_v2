@@ -4,11 +4,6 @@ const Transaction = require('../models/Transaction');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
 
 /** Quêtes de départ statiques (affichées avant que Rixy génère les personnalisées) */
 const STARTER_QUESTS = [
@@ -66,11 +61,11 @@ async function _syncQuestProgress(userId) {
     ? new mongoose.Types.ObjectId(userId)
     : null;
 
-  for (const quest of activeQuests) {
+  const promises = activeQuests.map(async (quest) => {
     if (quest.expiresAt && quest.expiresAt < now) {
       quest.status = 'expired';
       await quest.save();
-      continue;
+      return;
     }
 
     let newValue = quest.currentValue;
@@ -116,7 +111,9 @@ async function _syncQuestProgress(userId) {
     ) {
       await _completeQuestCore(quest, userId);
     }
-  }
+  });
+
+  await Promise.all(promises);
 }
 
 /** Génère des quêtes IA si l'utilisateur a moins de 5 quêtes actives et n'est pas en cooldown. */
@@ -429,7 +426,7 @@ async function listQuests(req, res) {
 
   const level = progress.getLevel();
 
-  sendJson(res, 200, {
+  res.status(200).json({
     quests: activeQuests,
     recentCompleted,
     progress: {
@@ -455,7 +452,7 @@ async function generateQuests(req, res) {
   if (progress && progress.nextQuestGenerationAt && progress.nextQuestGenerationAt > new Date()) {
     const diffMs = progress.nextQuestGenerationAt - new Date();
     const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-    return sendJson(res, 400, {
+    return res.status(400).json({
       error: `Rixy se repose ! De nouvelles quêtes seront disponibles dans ${diffDays} jour${diffDays > 1 ? 's' : ''}.`,
       nextQuestGenerationAt: progress.nextQuestGenerationAt,
     });
@@ -468,7 +465,7 @@ async function generateQuests(req, res) {
   }
 
   const result = await _generateQuestsForUser(userId);
-  sendJson(res, 200, result);
+  res.status(200).json(result);
 }
 
 /**
@@ -480,15 +477,15 @@ async function completeQuest(req, res) {
 
   const quest = await Quest.findOne({ _id: questId, userId, status: 'active' });
   if (!quest) {
-    return sendJson(res, 404, { error: 'Quête introuvable ou déjà terminée.' });
+    return res.status(404).json({ error: 'Quête introuvable ou déjà terminée.' });
   }
 
   const result = await _completeQuestCore(quest, userId);
   if (!result) {
-    return sendJson(res, 404, { error: 'Quête introuvable ou déjà terminée.' });
+    return res.status(404).json({ error: 'Quête introuvable ou déjà terminée.' });
   }
 
-  sendJson(res, 200, {
+  res.status(200).json({
     ...result,
     message: `Quête complétée ! +${result.xpEarned} XP 🎉`,
   });
@@ -511,7 +508,7 @@ async function getProgress(req, res) {
 
   const level = progress.getLevel();
 
-  sendJson(res, 200, {
+  res.status(200).json({
     xp: progress.xp,
     totalQuestsCompleted: progress.totalQuestsCompleted,
     streakDays: progress.streakDays,

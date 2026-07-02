@@ -85,12 +85,29 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
 
         user = users.find_one(
             {"_id": oid},
-            projection={"name": 1, "isMerchant": 1, "countryIso": 1},
+            projection={"name": 1, "isMerchant": 1, "countryIso": 1, "phoneE164": 1},
         )
         if not user:
             print(f"[Ryx AI] User '{user_mongo_id}' not found in DB '{db.name}'")
             return ""
         print(f"[Ryx AI] Found user: '{user.get('name')}' in DB")
+
+        # Resolve user currency dynamically
+        currency = "XOF"
+        wallet = db["wallets"].find_one({"userId": oid})
+        if wallet and wallet.get("currency"):
+            currency = str(wallet.get("currency")).strip().upper()
+        else:
+            country_iso = str(user.get("countryIso") or "").strip().upper()
+            if country_iso:
+                currency_map = {
+                    "FR": "EUR", "BE": "EUR", "CA": "CAD", "US": "USD",
+                    "CD": "CDF", "CG": "XAF", "CM": "XAF", "CI": "XOF",
+                    "SN": "XOF", "ML": "XOF", "BF": "XOF", "NE": "XOF",
+                    "TG": "XOF", "BJ": "XOF", "GN": "GNF", "MA": "MAD",
+                    "DZ": "DZD", "TN": "TND"
+                }
+                currency = currency_map.get(country_iso, "XOF")
 
 
         now = datetime.now(timezone.utc)
@@ -120,7 +137,7 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
         top_categories: list[str] = []
         for row in transactions.aggregate(pipeline_cat):
             cat = str(row.get("_id") or "—").strip() or "—"
-            top_categories.append(f"{cat}: {_fmt_xof(float(row.get('total') or 0))} XOF")
+            top_categories.append(f"{cat}: {_fmt_xof(float(row.get('total') or 0))} {currency}")
 
         budget_doc = monthly_budgets.find_one(
             {"userId": oid, "year": year, "month": month},
@@ -144,9 +161,9 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
                 rec_out += est
             title = str(rule.get("title") or "—").strip()
             rec_lines.append(
-                f"- {title} ({typ}) ~{_fmt_xof(est)} XOF/mois"
+                f"- {title} ({typ}) ~{_fmt_xof(est)} {currency}/mois"
                 if not en
-                else f"- {title} ({typ}) ~{_fmt_xof(est)} XOF/month"
+                else f"- {title} ({typ}) ~{_fmt_xof(est)} {currency}/month"
             )
 
         project_lines: list[str] = []
@@ -156,9 +173,9 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
             current = float(proj.get("currentAmount") or 0)
             pct = int((current / target) * 100) if target > 0 else 0
             project_lines.append(
-                f"- {title}: {_fmt_xof(current)} / {_fmt_xof(target)} XOF ({pct} %)"
+                f"- {title}: {_fmt_xof(current)} / {_fmt_xof(target)} {currency} ({pct} %)"
                 if not en
-                else f"- {title}: {_fmt_xof(current)} / {_fmt_xof(target)} XOF ({pct}%)"
+                else f"- {title}: {_fmt_xof(current)} / {_fmt_xof(target)} {currency} ({pct}%)"
             )
 
         merchant_block = ""
@@ -186,12 +203,12 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
             if en:
                 merchant_block = (
                     f"Shop (seller): {product_count} products, {month_orders} orders this month, "
-                    f"{pending_orders} pending, confirmed revenue this month ~{_fmt_xof(shop_revenue)} XOF\n"
+                    f"{pending_orders} pending, confirmed revenue this month ~{_fmt_xof(shop_revenue)} {currency}\n"
                 )
             else:
                 merchant_block = (
                     f"Boutique (vendeur) : {product_count} produits, {month_orders} commandes ce mois, "
-                    f"{pending_orders} en attente, CA confirmé ce mois ~{_fmt_xof(shop_revenue)} XOF\n"
+                    f"{pending_orders} en attente, CA confirmé ce mois ~{_fmt_xof(shop_revenue)} {currency}\n"
                 )
 
         cursor = (
@@ -234,30 +251,30 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
             remaining = b_amt - month_out
             if en:
                 budget_line = (
-                    f"Monthly spending cap: {_fmt_xof(b_amt)} XOF — spent {_fmt_xof(month_out)} XOF "
-                    f"(remaining ~{_fmt_xof(max(0, remaining))} XOF)\n"
+                    f"Monthly spending cap: {_fmt_xof(b_amt)} {currency} — spent {_fmt_xof(month_out)} {currency} "
+                    f"(remaining ~{_fmt_xof(max(0, remaining))} {currency})\n"
                 )
             else:
                 budget_line = (
-                    f"Plafond dépenses du mois : {_fmt_xof(b_amt)} XOF — déjà dépensé {_fmt_xof(month_out)} XOF "
-                    f"(reste ~{_fmt_xof(max(0, remaining))} XOF)\n"
+                    f"Plafond dépenses du mois : {_fmt_xof(b_amt)} {currency} — déjà dépensé {_fmt_xof(month_out)} {currency} "
+                    f"(reste ~{_fmt_xof(max(0, remaining))} {currency})\n"
                 )
 
         balance_line = ""
         if balance_doc is not None:
             bal = float(balance_doc.get("balance") or 0)
             balance_line = (
-                f"Declared monthly balance: {_fmt_xof(bal)} XOF\n"
+                f"Declared monthly balance: {_fmt_xof(bal)} {currency}\n"
                 if en
-                else f"Solde mensuel déclaré : {_fmt_xof(bal)} XOF\n"
+                else f"Solde mensuel déclaré : {_fmt_xof(bal)} {currency}\n"
             )
 
         rec_block = ""
         if rec_lines:
             rec_header = (
-                f"Active recurring (~monthly): income ~{_fmt_xof(rec_in)} XOF, expenses ~{_fmt_xof(rec_out)} XOF\n"
+                f"Active recurring (~monthly): income ~{_fmt_xof(rec_in)} {currency}, expenses ~{_fmt_xof(rec_out)} {currency}\n"
                 if en
-                else f"Récurrents actifs (estim. mensuel) : entrées ~{_fmt_xof(rec_in)} XOF, sorties ~{_fmt_xof(rec_out)} XOF\n"
+                else f"Récurrents actifs (estim. mensuel) : entrées ~{_fmt_xof(rec_in)} {currency}, sorties ~{_fmt_xof(rec_out)} {currency}\n"
             )
             rec_block = rec_header + "\n".join(rec_lines[:12]) + "\n"
 
@@ -281,8 +298,8 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
             header = "--- Ryx user data (confidential; this user only) ---\n"
             profile = f"Profile: {name}, country: {country}, merchant account: {'yes' if merchant else 'no'}\n"
             summary = (
-                f"Current month (UTC): inflows {_fmt_xof(month_in)} XOF, outflows {_fmt_xof(month_out)} XOF, "
-                f"net {_fmt_xof(month_net)} XOF\n"
+                f"Current month (UTC): inflows {_fmt_xof(month_in)} {currency}, outflows {_fmt_xof(month_out)} {currency}, "
+                f"net {_fmt_xof(month_net)} {currency}\n"
             )
             tx_header = f"Recent transactions ({len(tx_lines)} shown):\n"
             empty_tx = "(no transactions)\n"
@@ -290,8 +307,8 @@ def build_user_finance_context(user_mongo_id: str, locale: str) -> str:
             header = "--- Données Ryx (confidentiel ; cet utilisateur uniquement) ---\n"
             profile = f"Profil : {name}, pays : {country}, compte vendeur : {'oui' if merchant else 'non'}\n"
             summary = (
-                f"Mois en cours (UTC) : entrées {_fmt_xof(month_in)} XOF, sorties {_fmt_xof(month_out)} XOF, "
-                f"net {_fmt_xof(month_net)} XOF\n"
+                f"Mois en cours (UTC) : entrées {_fmt_xof(month_in)} {currency}, sorties {_fmt_xof(month_out)} {currency}, "
+                f"net {_fmt_xof(month_net)} {currency}\n"
             )
             tx_header = f"Dernières opérations ({len(tx_lines)} affichées) :\n"
             empty_tx = "(aucune opération)\n"

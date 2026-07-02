@@ -9,6 +9,7 @@ import { LogBox } from 'react-native';
 import { AppearanceProvider } from '@/contexts/AppearanceContext';
 import { LocaleProvider } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/components/useColorScheme';
+import { OfflineStatusBanner } from '@/components/OfflineStatusBanner';
 
 export {
   ErrorBoundary,
@@ -69,6 +70,7 @@ function RootLayoutNavThemed() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? RyxDarkNavTheme : RyxLightNavTheme}>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <OfflineStatusBanner />
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />

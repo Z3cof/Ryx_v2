@@ -29,8 +29,8 @@ const fr: Tree = {
     registerPhoneVerified: 'Numéro vérifié',
     registerNeedVerify: 'Vérifiez votre compte avec le code envoyé par e-mail avant de continuer.',
     registerErrPhoneInvalid: 'Numéro invalide pour le pays sélectionné.',
-    registerPhoneTaken: 'Ce numéro est déjà utilisé par un compte. Connectez-vous ou utilise un autre numéro.',
-    registerEmailTaken: 'Cet email est déjà utilisé. Connectez-vous ou choisis une autre adresse.',
+    registerPhoneTaken: 'Ce numéro est déjà utilisé par un compte. Connectez-vous ou utilisez un autre numéro.',
+    registerEmailTaken: 'Cet email est déjà utilisé. Connectez-vous ou choisissez une autre adresse.',
     registerEmailInvalid: 'Adresse email invalide.',
     registerBackEditForm: 'Modifier email et téléphone',
     registerOtpIncomplete: 'Saisissez le code à 6 chiffres reçu par e-mail.',
@@ -70,10 +70,10 @@ const fr: Tree = {
   onboarding: {
     incomeTitle: 'Vos entrées récurrentes',
     incomeSub:
-      'Ajoute les revenus qui reviennent chaque mois (salaire, aides…). Vous pouvez ignorer cette page et passer cette étape : tout est modifiable plus tard dans l’app.',
+      'Ajoutez les revenus qui reviennent chaque mois (salaire, aides…). Vous pouvez ignorer cette page et passer cette étape : tout est modifiable plus tard dans l’app.',
     expenseTitle: 'Vos dépenses récurrentes',
     expenseSub:
-      'Loyer, abonnements, assurances… Enregistre-les ici comme repère. Vous pouvez ignorer cette page si vous préférez utiliser l’app.',
+      'Loyer, abonnements, assurances… Enregistrez-les ici comme repère. Vous pouvez ignorer cette page si vous préférez utiliser l’app.',
     addLine: 'Ajouter une ligne',
     continue: 'Continuer',
     skip: 'Ignorer',
@@ -102,7 +102,7 @@ const fr: Tree = {
     subtitle: 'Défis financiers intelligents',
     activeQuests: 'Défis actifs',
     completedQuests: 'Défis complétés',
-    noQuests: "Aucun défi actif. Demande à Rixy d'en générer !",
+    noQuests: "Aucun défi actif. Demandez à Rixy d'en générer !",
     generateQuestsBtn: 'Générer de nouveaux défis ⚡',
     generating: 'Génération en cours...',
     completeBtn: 'Terminer',
@@ -147,14 +147,14 @@ const fr: Tree = {
     projectsTitle: 'Projets',
     projectsSub: 'Objectifs d’épargne',
     projectsOpen: 'Voir',
-    projectsEmpty: 'Vous avez aucun projet pour le moment.',
+    projectsEmpty: 'Vous n’avez aucun projet pour le moment.',
     projectsTotals: 'Progression globale: {current} / {target}',
   },
   parametres: {
     pageKicker: 'Réglages',
     pageTitle: 'Paramètres',
     sessionTitle: 'Session requise',
-    sessionText: 'Connecte-toi pour accéder aux paramètres.',
+    sessionText: 'Connectez-vous pour accéder aux paramètres.',
     loginBtn: 'Connexion',
     defaultUser: 'Utilisateur',
     merchantBadge: 'Compte vendeur',
@@ -163,7 +163,7 @@ const fr: Tree = {
     profileSub: 'Informations personnelles et mot de passe',
     sectionDanger: 'Compte',
     deleteAccountRow: 'Supprimer mon compte',
-    deleteAccountRowSub: 'Efface définitivement tes données Ryx',
+    deleteAccountRowSub: 'Efface définitivement vos données Ryx',
     deleteAccountAlertTitle: 'Supprimer le compte ?',
     deleteAccountAlertBody:
       'Toutes vos transactions, votre boutique, vos règles récurrentes et votre profil seront supprimés. Cette action est irréversible.',
@@ -197,22 +197,22 @@ const fr: Tree = {
     versionSub: 'Ryx Mobile',
     logout: 'Déconnexion',
     footerHint:
-      'Pense à sauvegarder ce dont vous avez besoin avant de supprimer votre compte : l’opération est définitive.',
+      'Pensez à sauvegarder ce dont vous avez besoin avant de supprimer votre compte : l’opération est définitive.',
     logoutAlertTitle: 'Déconnexion',
     logoutAlertBody: 'Vous serez renvoyé vers l’écran de connexion.',
     cancel: 'Annuler',
     logoutConfirm: 'Déconnexion',
     merchantPromptTitle: 'Compte vendeur',
     merchantPromptBody:
-      'Vous auras accès à « Ma boutique » pour suivre vos ventes. Vous pourrez quitter ce statut plus tard depuis cette page si besoin.',
+      'Vous aurez accès à « Ma boutique » pour suivre vos ventes. Vous pourrez quitter ce statut plus tard depuis cette page si besoin.',
     activate: 'Activer',
     merchantOkTitle: 'C’est activé',
-    merchantOkBody: 'Ouvre « Ma boutique » dans le menu pour commencer.',
+    merchantOkBody: 'Ouvrez « Ma boutique » dans le menu pour commencer.',
     error: 'Erreur',
     tryAgain: 'Réessayez dans un instant.',
     leaveMerchantTitle: 'Quitter le statut vendeur',
     leaveMerchantBody:
-      'Vous n’auriez plus accès à « Ma boutique » jusqu’à réactivation. Continuer ?',
+      'Vous n’aurez plus accès à « Ma boutique » jusqu’à réactivation. Continuer ?',
     leaveConfirm: 'Quitter',
     leaveOkTitle: 'Statut mis à jour',
     leaveOkBody: 'Vous êtes repassé en compte standard.',
@@ -244,7 +244,7 @@ const fr: Tree = {
     saveFailed: 'Erreur lors de l’enregistrement.',
     galleryTitle: 'Accès à la photothèque',
     galleryBody:
-      'Autorise l’accès aux photos dans les réglages du téléphone pour choisir une image.',
+      'Autorisez l’accès aux photos dans les réglages du téléphone pour choisir une image.',
     avatarHeavyTitle: 'Photo trop lourde',
     avatarHeavyBody: 'Choisissez une image plus petite ou recadrez davantage.',
     avatarSaveError: 'Enregistrement de la photo impossible.',
@@ -370,7 +370,7 @@ const fr: Tree = {
     editSave: 'Enregistrer les modifications',
     editDeleteTitle: 'Supprimer cette écriture ?',
     editDeleteBody: 'Cette action est définitive.',
-    editDeletedMsg: 'Écriture supprimée. La liste est à jour — ferme quand tu veux.',
+    editDeletedMsg: 'Écriture supprimée. La liste est à jour — fermez quand vous voulez.',
     editDeletedTitle: 'Terminé',
     editAction: 'Modifier',
     deleteAction: 'Supprimer',
@@ -378,9 +378,9 @@ const fr: Tree = {
     recurringCheckboxIncome: 'Créer aussi une règle récurrente (répétition ci-dessous)',
     recurringPartialTitle: 'Récurrence',
     recurringPartialExpenseBody:
-      'Votre dépense est enregistrée, mais la règle récurrente n’a pas pu être créée. Réessaie depuis l’onglet Récurrences.',
+      'Votre dépense est enregistrée, mais la règle récurrente n’a pas pu être créée. Réessayez depuis l’onglet Récurrences.',
     recurringPartialIncomeBody:
-      'Votre entrée est enregistrée, mais la règle récurrente n’a pas pu être créée. Réessaie depuis l’onglet Récurrences.',
+      'Votre entrée est enregistrée, mais la règle récurrente n’a pas pu être créée. Réessayez depuis l’onglet Récurrences.',
     errTitle: 'Titre requis.',
     errAmount: 'Montant invalide.',
     errSave: 'Erreur lors de l’enregistrement',
@@ -430,7 +430,7 @@ const fr: Tree = {
     recurrencesDeleteConfirm: 'Supprimer',
     recurringEditTitle: 'Répétition',
     recurringEditHint:
-      'Choisis jour, semaine ou mois puis Enregistrer. Les écritures déjà créées pour les mois passés ne sont pas supprimées.',
+      'Choisissez jour, semaine ou mois puis Enregistrer. Les écritures déjà créées pour les mois passés ne sont pas supprimées.',
     projectsTitle: 'Mes projets',
     projectsIntro:
       'Créez un projet (ex: achat maison), fixez le montant cible, puis remplissez manuellement ou automatiquement.',
@@ -458,9 +458,9 @@ const fr: Tree = {
   },
   assistant: {
     welcome:
-      'Salut ! Je suis Rixy, ton assistant budget Ryx. Je connais tes chiffres (si tu es connecté) et je peux t’aider sur l’app, ton budget, ou un achat important selon tes moyens.',
+      'Bonjour ! Je suis Rixy, votre assistant budget Ryx. Je connais vos chiffres (si vous êtes connecté) et je peux vous aider sur l’app, votre budget, ou un achat important selon vos moyens.',
     welcomeNamed:
-      'Salut {name} ! Je suis Rixy. Je peux analyser tes finances du mois, t’expliquer l’app, ou te conseiller un achat (voiture, etc.) selon ton budget.',
+      'Bonjour {name} ! Je suis Rixy. Je peux analyser vos finances du mois, vous expliquer l’app, ou vous conseiller un achat (voiture, etc.) selon votre budget.',
     sug1: 'Comment vont mes finances ce mois-ci ?',
     sug2: 'Quel type de voiture pour mon budget ?',
     sug3: 'Comment ajouter une dépense ?',
@@ -472,17 +472,17 @@ const fr: Tree = {
     sendError: 'Désolé, une erreur s’est produite. Essayez à nouveau dans un instant.',
     replyEmpty: 'Écrivez-moi une question : budget, dépenses, accueil, ryxquest…',
     replyGreeting:
-      'Bonjour ! Je suis Rixy. Pose-moi une question sur tes finances, l’app, ou un projet d’achat lié à ton budget.',
+      'Bonjour ! Je suis Rixy. Posez-moi une question sur vos finances, l’app, ou un projet d’achat lié à votre budget.',
     replyExpense:
       'Pour vos dépenses, ouvrez l’onglet « Dépenses » en bas. Vous pouvez ajouter une dépense, choisir une catégorie et suivre le total du mois.',
     replyBudget:
-      'Sur l’« Accueil », tu vois ton solde du mois, le détail économies / dépenses, et des rappels. Tire vers le bas pour rafraîchir les chiffres.',
+      'Sur l’« Accueil », vous voyez votre solde du mois, le détail économies / dépenses, et des rappels. Tirez vers le bas pour rafraîchir les chiffres.',
     replyQuest:
-      'RyxQuest est ton espace de défis financiers intelligents personnalisés par Rixy (ex: économiser 10%, limiter une catégorie de dépense...) pour t’aider à progresser de façon ludique. Accède à l’onglet RyxQuest en bas !',
+      'RyxQuest est votre espace de défis financiers intelligents personnalisés par Rixy (ex: économiser 10%, limiter une catégorie de dépense...) pour vous aider à progresser de façon ludique. Accédez à l’onglet RyxQuest en bas !',
     replyHelp:
       'Vous pouvez me demander par exemple : « Comment ajouter une dépense ? », « C’est quoi le solde ? », ou « C’est quoi RyxQuest ? ». Sinon, les onglets en bas vous mènent à chaque section.',
     replyFallback:
-      'Je ne peux pas répondre à ça. Demande-moi plutôt tes finances, l’app Ryx, ou un conseil d’achat selon ton budget (ex. voiture, logement).',
+      'Je ne peux pas répondre à ça. Demandez-moi plutôt vos finances, l’app Ryx, ou un conseil d’achat selon votre budget (ex. voiture, logement).',
   },
 };
 

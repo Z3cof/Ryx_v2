@@ -30,20 +30,15 @@ function pickCadenceRaw(body) {
   return undefined;
 }
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
 
 function parseObjectId(userId, res) {
   if (!userId) {
-    sendJson(res, 400, { error: 'userId requis.' });
+    res.status(400).json({ error: 'userId requis.' });
     return null;
   }
   const oid = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
   if (!oid) {
-    sendJson(res, 400, { error: 'userId invalide.' });
+    res.status(400).json({ error: 'userId invalide.' });
     return null;
   }
   return oid;
@@ -79,7 +74,7 @@ async function listRules(req, res) {
   if (!oid) return;
 
   const rules = await RecurringRule.find({ userId: oid, isActive: true }).sort({ createdAt: -1 }).lean();
-  sendJson(res, 200, { rules: rules.map(formatRule) });
+  res.status(200).json({ rules: rules.map(formatRule) });
 }
 
 /**
@@ -96,15 +91,15 @@ async function createRule(req, res) {
   const { type, title, amount, category, currency: rawCurrency } = body;
   const rawCadence = pickCadenceRaw(body);
   if (type !== 'in' && type !== 'out') {
-    return sendJson(res, 400, { error: 'type doit être in ou out.' });
+    return res.status(400).json({ error: 'type doit être in ou out.' });
   }
   const t = String(title || '').trim();
   if (!t) {
-    return sendJson(res, 400, { error: 'title requis.' });
+    return res.status(400).json({ error: 'title requis.' });
   }
   const num = Number(amount);
   if (Number.isNaN(num) || num <= 0) {
-    return sendJson(res, 400, { error: 'amount doit être un nombre positif.' });
+    return res.status(400).json({ error: 'amount doit être un nombre positif.' });
   }
 
   const defaultCur = await getExpectedCurrencyForUserId(oid);
@@ -133,7 +128,7 @@ async function createRule(req, res) {
 
   const saved = await RecurringRule.findById(doc._id).lean();
   if (!saved) {
-    return sendJson(res, 500, { error: 'Erreur persistance de la règle.' });
+    return res.status(500).json({ error: 'Erreur persistance de la règle.' });
   }
   console.log('[recurring:create] saved', {
     id: saved._id.toString(),
@@ -141,7 +136,7 @@ async function createRule(req, res) {
     type: saved.type,
     title: saved.title,
   });
-  sendJson(res, 201, { rule: formatRule(saved) });
+  res.status(201).json({ rule: formatRule(saved) });
 }
 
 /**
@@ -154,7 +149,7 @@ async function patchRule(req, res) {
 
   const { ruleId } = req.params;
   if (!ruleId || !mongoose.Types.ObjectId.isValid(ruleId)) {
-    return sendJson(res, 400, { error: 'ruleId invalide.' });
+    return res.status(400).json({ error: 'ruleId invalide.' });
   }
 
   const rawBody = req.body;
@@ -163,7 +158,7 @@ async function patchRule(req, res) {
   const rawCadence = pickCadenceRaw(body);
   const hasAmount = body.amount != null && body.amount !== '';
   if (rawCadence == null && !hasAmount) {
-    return sendJson(res, 400, { error: 'Aucun champ à modifier (cadence ou amount).' });
+    return res.status(400).json({ error: 'Aucun champ à modifier (cadence ou amount).' });
   }
 
   const updateSet = {};
@@ -173,7 +168,7 @@ async function patchRule(req, res) {
   if (hasAmount) {
     const num = Number(body.amount);
     if (!Number.isFinite(num) || num <= 0) {
-      return sendJson(res, 400, { error: 'amount doit être un nombre positif.' });
+      return res.status(400).json({ error: 'amount doit être un nombre positif.' });
     }
     updateSet.amount = Math.abs(num);
   }
@@ -185,9 +180,9 @@ async function patchRule(req, res) {
   ).lean();
 
   if (!updated) {
-    return sendJson(res, 404, { error: 'Règle introuvable.' });
+    return res.status(404).json({ error: 'Règle introuvable.' });
   }
-  sendJson(res, 200, { rule: formatRule(updated) });
+  res.status(200).json({ rule: formatRule(updated) });
 }
 
 /**
@@ -199,14 +194,14 @@ async function deleteRule(req, res) {
 
   const { ruleId } = req.params;
   if (!ruleId || !mongoose.Types.ObjectId.isValid(ruleId)) {
-    return sendJson(res, 400, { error: 'ruleId invalide.' });
+    return res.status(400).json({ error: 'ruleId invalide.' });
   }
 
   const result = await RecurringRule.deleteOne({ _id: ruleId, userId: oid });
   if (result.deletedCount === 0) {
-    return sendJson(res, 404, { error: 'Règle introuvable.' });
+    return res.status(404).json({ error: 'Règle introuvable.' });
   }
-  sendJson(res, 200, { ok: true });
+  res.status(200).json({ ok: true });
 }
 
 /**
@@ -222,7 +217,7 @@ async function ensureMonth(req, res) {
   const y = Number.isNaN(year) ? new Date().getFullYear() : year;
   const m = Number.isNaN(month) ? new Date().getMonth() + 1 : month;
   if (m < 1 || m > 12) {
-    return sendJson(res, 400, { error: 'Mois invalide.' });
+    return res.status(400).json({ error: 'Mois invalide.' });
   }
 
   const now = new Date();
@@ -230,13 +225,13 @@ async function ensureMonth(req, res) {
   const currentM = now.getMonth() + 1;
   const isFuture = y > currentY || (y === currentY && m > currentM);
   if (isFuture) {
-    return sendJson(res, 200, { created: [], createdCount: 0, skipped: 'future_month' });
+    return res.status(200).json({ created: [], createdCount: 0, skipped: 'future_month' });
   }
 
   const result = await ensureRecurringForUserMonth(oid, y, m);
   const body = { created: result.createdIds, createdCount: result.createdCount };
   if (result.skipped) body.skipped = result.skipped;
-  sendJson(res, 200, body);
+  res.status(200).json(body);
 }
 
 module.exports = {

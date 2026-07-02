@@ -19,12 +19,6 @@ const {
 } = require('../utils/otpStore');
 const { sendOtpTemplate, isWhatsappMockEnabled } = require('../services/whatsappOtpSend');
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
-
 /**
  * POST /api/auth/forgot-password/send
  * Body: { phoneE164 } OU { email }
@@ -38,7 +32,7 @@ async function sendResetCode(req, res) {
   if (body.email) {
     const email = String(body.email).trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return sendJson(res, 400, { error: 'Adresse e-mail invalide.', code: 'EMAIL_INVALID' });
+      return res.status(400).json({ error: 'Adresse e-mail invalide.', code: 'EMAIL_INVALID' });
     }
 
     const genericOk = {
@@ -48,11 +42,11 @@ async function sendResetCode(req, res) {
 
     const user = await User.findOne({ email }).select('_id').lean();
     if (!user) {
-      return sendJson(res, 200, genericOk);
+      return res.status(200).json(genericOk);
     }
 
     if (!canResendEmail(email)) {
-      return sendJson(res, 429, {
+      return res.status(429).json({
         error: `Attendez ${Math.ceil(RESEND_COOLDOWN_MS / 1000)} secondes avant un nouvel envoi.`,
       });
     }
@@ -67,13 +61,13 @@ async function sendResetCode(req, res) {
     if (process.env.NODE_ENV !== 'production') {
       responseBody.devOtp = code;
     }
-    return sendJson(res, 200, responseBody);
+    return res.status(200).json(responseBody);
   }
 
   // ── Phone flow ──────────────────────────────────────────────────────────────
   const phoneE164 = normalizeAndValidate(body.phoneE164);
   if (!phoneE164) {
-    return sendJson(res, 400, { error: 'Numéro de téléphone ou e-mail requis.', code: 'INPUT_INVALID' });
+    return res.status(400).json({ error: 'Numéro de téléphone ou e-mail requis.', code: 'INPUT_INVALID' });
   }
 
   const genericOk = {
@@ -83,11 +77,11 @@ async function sendResetCode(req, res) {
 
   const user = await User.findOne({ phoneE164 }).select('_id').lean();
   if (!user) {
-    return sendJson(res, 200, genericOk);
+    return res.status(200).json(genericOk);
   }
 
   if (!canResend(phoneE164)) {
-    return sendJson(res, 429, {
+    return res.status(429).json({
       error: `Attendez ${Math.ceil(RESEND_COOLDOWN_MS / 1000)} secondes avant un nouvel envoi.`,
     });
   }
@@ -104,10 +98,10 @@ async function sendResetCode(req, res) {
     if (result.mock && (process.env.NODE_ENV !== 'production' || isWhatsappMockEnabled())) {
       responseBody.devOtp = code;
     }
-    return sendJson(res, 200, responseBody);
+    return res.status(200).json(responseBody);
   } catch (e) {
     console.error('[Forgot password WhatsApp]', e.message || e);
-    return sendJson(res, 502, {
+    return res.status(502).json({
       error: "Impossible d'envoyer le message WhatsApp. Réessayez plus tard.",
     });
   }
@@ -123,40 +117,40 @@ async function verifyResetCode(req, res) {
   const code = String(body.code || '').trim().replace(/\s/g, '');
 
   if (!/^\d{6}$/.test(code)) {
-    return sendJson(res, 400, { error: 'Code à 6 chiffres requis.' });
+    return res.status(400).json({ error: 'Code à 6 chiffres requis.' });
   }
 
   // ── Email flow ──────────────────────────────────────────────────────────────
   if (body.email) {
     const email = String(body.email).trim().toLowerCase();
     if (!verifyAndConsumeEmailOtp(email, code)) {
-      return sendJson(res, 400, { error: 'Code incorrect ou expiré.' });
+      return res.status(400).json({ error: 'Code incorrect ou expiré.' });
     }
     const user = await User.findOne({ email }).select('_id').lean();
     if (!user) {
-      return sendJson(res, 400, { error: 'Code incorrect ou expiré.' });
+      return res.status(400).json({ error: 'Code incorrect ou expiré.' });
     }
     const resetToken = issueResetToken(email);
-    return sendJson(res, 200, { ok: true, resetToken });
+    return res.status(200).json({ ok: true, resetToken });
   }
 
   // ── Phone flow ──────────────────────────────────────────────────────────────
   const phoneE164 = normalizeAndValidate(body.phoneE164);
   if (!phoneE164) {
-    return sendJson(res, 400, { error: 'Numéro de téléphone ou e-mail requis.', code: 'INPUT_INVALID' });
+    return res.status(400).json({ error: 'Numéro de téléphone ou e-mail requis.', code: 'INPUT_INVALID' });
   }
 
   if (!verifyAndConsumeOtp(phoneE164, code)) {
-    return sendJson(res, 400, { error: 'Code incorrect ou expiré.' });
+    return res.status(400).json({ error: 'Code incorrect ou expiré.' });
   }
 
   const user = await User.findOne({ phoneE164 }).select('_id').lean();
   if (!user) {
-    return sendJson(res, 400, { error: 'Code incorrect ou expiré.' });
+    return res.status(400).json({ error: 'Code incorrect ou expiré.' });
   }
 
   const resetToken = issueResetTokenByPhone(phoneE164);
-  return sendJson(res, 200, { ok: true, resetToken });
+  return res.status(200).json({ ok: true, resetToken });
 }
 
 /**
@@ -169,46 +163,46 @@ async function resetPassword(req, res) {
   const newPassword = String(body.newPassword || '');
 
   if (!resetToken) {
-    return sendJson(res, 400, { error: 'Jeton de réinitialisation requis.' });
+    return res.status(400).json({ error: 'Jeton de réinitialisation requis.' });
   }
   if (newPassword.length < 6) {
-    return sendJson(res, 400, { error: 'Le mot de passe doit faire au moins 6 caractères.' });
+    return res.status(400).json({ error: 'Le mot de passe doit faire au moins 6 caractères.' });
   }
 
   // ── Email flow ──────────────────────────────────────────────────────────────
   if (body.email) {
     const email = String(body.email).trim().toLowerCase();
     if (!consumeResetToken(resetToken, email)) {
-      return sendJson(res, 400, { error: 'Lien ou code expiré. Recommencez la procédure.' });
+      return res.status(400).json({ error: 'Lien ou code expiré. Recommencez la procédure.' });
     }
     const user = await User.findOne({ email });
     if (!user) {
-      return sendJson(res, 400, { error: 'Lien ou code expiré. Recommencez la procédure.' });
+      return res.status(400).json({ error: 'Lien ou code expiré. Recommencez la procédure.' });
     }
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
-    return sendJson(res, 200, { ok: true, message: 'Mot de passe mis à jour. Vous pouvez vous connecter.' });
+    return res.status(200).json({ ok: true, message: 'Mot de passe mis à jour. Vous pouvez vous connecter.' });
   }
 
   // ── Phone flow ──────────────────────────────────────────────────────────────
   const phoneE164 = normalizeAndValidate(body.phoneE164);
   if (!phoneE164) {
-    return sendJson(res, 400, { error: 'Numéro de téléphone ou e-mail requis.', code: 'INPUT_INVALID' });
+    return res.status(400).json({ error: 'Numéro de téléphone ou e-mail requis.', code: 'INPUT_INVALID' });
   }
 
   if (!consumeResetTokenByPhone(resetToken, phoneE164)) {
-    return sendJson(res, 400, { error: 'Lien ou code expiré. Recommencez la procédure.' });
+    return res.status(400).json({ error: 'Lien ou code expiré. Recommencez la procédure.' });
   }
 
   const user = await User.findOne({ phoneE164 });
   if (!user) {
-    return sendJson(res, 400, { error: 'Lien ou code expiré. Recommencez la procédure.' });
+    return res.status(400).json({ error: 'Lien ou code expiré. Recommencez la procédure.' });
   }
 
   user.password = await bcrypt.hash(newPassword, 10);
   await user.save();
 
-  return sendJson(res, 200, {
+  return res.status(200).json({
     ok: true,
     message: 'Mot de passe mis à jour. Vous pouvez vous connecter.',
   });

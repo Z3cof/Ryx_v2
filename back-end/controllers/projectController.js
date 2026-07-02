@@ -2,20 +2,15 @@ const mongoose = require('mongoose');
 const ProjectGoal = require('../models/ProjectGoal');
 const { getExpectedCurrencyForUserId } = require('../utils/userCurrency');
 
-function sendJson(res, status, data) {
-  res.status(status);
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(data));
-}
 
 function parseObjectId(userId, res) {
   if (!userId) {
-    sendJson(res, 400, { error: 'userId requis.' });
+    res.status(400).json({ error: 'userId requis.' });
     return null;
   }
   const oid = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
   if (!oid) {
-    sendJson(res, 400, { error: 'userId invalide.' });
+    res.status(400).json({ error: 'userId invalide.' });
     return null;
   }
   return oid;
@@ -99,7 +94,7 @@ async function listProjects(req, res) {
   for (const row of rows) {
     await applyScheduledAutoFill(row);
   }
-  sendJson(res, 200, { projects: rows.map((r) => formatProject(r.toObject())) });
+  res.status(200).json({ projects: rows.map((r) => formatProject(r.toObject())) });
 }
 
 async function createProject(req, res) {
@@ -107,11 +102,11 @@ async function createProject(req, res) {
   if (!oid) return;
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const title = String(body.title || '').trim();
-  if (!title) return sendJson(res, 400, { error: 'title requis.' });
+  if (!title) return res.status(400).json({ error: 'title requis.' });
 
   const targetAmount = Number(body.targetAmount);
   if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
-    return sendJson(res, 400, { error: 'targetAmount doit être un nombre positif.' });
+    return res.status(400).json({ error: 'targetAmount doit être un nombre positif.' });
   }
 
   const autoEnabled = body.autoEnabled === true;
@@ -133,7 +128,7 @@ async function createProject(req, res) {
     currency,
   });
   const saved = await ProjectGoal.findById(created._id).lean();
-  sendJson(res, 201, { project: formatProject(saved) });
+  res.status(201).json({ project: formatProject(saved) });
 }
 
 async function patchProject(req, res) {
@@ -141,19 +136,19 @@ async function patchProject(req, res) {
   if (!oid) return;
   const { projectId } = req.params;
   if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
-    return sendJson(res, 400, { error: 'projectId invalide.' });
+    return res.status(400).json({ error: 'projectId invalide.' });
   }
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const set = {};
   if (body.title != null) {
     const title = String(body.title).trim();
-    if (!title) return sendJson(res, 400, { error: 'title invalide.' });
+    if (!title) return res.status(400).json({ error: 'title invalide.' });
     set.title = title;
   }
   if (body.targetAmount != null) {
     const target = Number(body.targetAmount);
     if (!Number.isFinite(target) || target <= 0) {
-      return sendJson(res, 400, { error: 'targetAmount invalide.' });
+      return res.status(400).json({ error: 'targetAmount invalide.' });
     }
     set.targetAmount = Math.abs(target);
   }
@@ -162,18 +157,18 @@ async function patchProject(req, res) {
   }
   if (body.autoAmount != null) {
     const n = Number(body.autoAmount);
-    if (!Number.isFinite(n) || n < 0) return sendJson(res, 400, { error: 'autoAmount invalide.' });
+    if (!Number.isFinite(n) || n < 0) return res.status(400).json({ error: 'autoAmount invalide.' });
     set.autoAmount = Math.abs(n);
   }
   if (body.autoCadence != null) {
     set.autoCadence = normalizeAutoCadence(body.autoCadence);
   }
   if (Object.keys(set).length === 0) {
-    return sendJson(res, 400, { error: 'Aucun champ à modifier.' });
+    return res.status(400).json({ error: 'Aucun champ à modifier.' });
   }
 
   if (set.autoEnabled === true && (set.autoAmount == null || set.autoAmount <= 0)) {
-    return sendJson(res, 400, { error: 'autoAmount doit être > 0 quand autoEnabled est activé.' });
+    return res.status(400).json({ error: 'autoAmount doit être > 0 quand autoEnabled est activé.' });
   }
   if (set.autoEnabled === false) {
     set.autoAmount = 0;
@@ -185,8 +180,8 @@ async function patchProject(req, res) {
     { $set: set },
     { new: true, runValidators: true }
   ).lean();
-  if (!updated) return sendJson(res, 404, { error: 'Projet introuvable.' });
-  sendJson(res, 200, { project: formatProject(updated) });
+  if (!updated) return res.status(404).json({ error: 'Projet introuvable.' });
+  res.status(200).json({ project: formatProject(updated) });
 }
 
 async function addContribution(req, res) {
@@ -194,19 +189,19 @@ async function addContribution(req, res) {
   if (!oid) return;
   const { projectId } = req.params;
   if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
-    return sendJson(res, 400, { error: 'projectId invalide.' });
+    return res.status(400).json({ error: 'projectId invalide.' });
   }
   const amount = Number(req.body?.amount);
   if (!Number.isFinite(amount) || amount <= 0) {
-    return sendJson(res, 400, { error: 'amount doit être un nombre positif.' });
+    return res.status(400).json({ error: 'amount doit être un nombre positif.' });
   }
 
   const doc = await ProjectGoal.findOne({ _id: projectId, userId: oid });
-  if (!doc) return sendJson(res, 404, { error: 'Projet introuvable.' });
+  if (!doc) return res.status(404).json({ error: 'Projet introuvable.' });
 
   doc.currentAmount = Math.min(doc.targetAmount, Math.max(0, Number(doc.currentAmount) || 0) + Math.abs(amount));
   await doc.save();
-  sendJson(res, 200, { project: formatProject(doc.toObject()) });
+  res.status(200).json({ project: formatProject(doc.toObject()) });
 }
 
 async function applyAutoFill(req, res) {
@@ -214,19 +209,19 @@ async function applyAutoFill(req, res) {
   if (!oid) return;
   const { projectId } = req.params;
   if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
-    return sendJson(res, 400, { error: 'projectId invalide.' });
+    return res.status(400).json({ error: 'projectId invalide.' });
   }
   const doc = await ProjectGoal.findOne({ _id: projectId, userId: oid });
-  if (!doc) return sendJson(res, 404, { error: 'Projet introuvable.' });
+  if (!doc) return res.status(404).json({ error: 'Projet introuvable.' });
   if (!doc.autoEnabled || Number(doc.autoAmount) <= 0) {
-    return sendJson(res, 400, { error: 'Remplissage automatique non configuré.' });
+    return res.status(400).json({ error: 'Remplissage automatique non configuré.' });
   }
   doc.currentAmount = Math.min(
     doc.targetAmount,
     Math.max(0, Number(doc.currentAmount) || 0) + Math.abs(Number(doc.autoAmount) || 0)
   );
   await doc.save();
-  sendJson(res, 200, { project: formatProject(doc.toObject()) });
+  res.status(200).json({ project: formatProject(doc.toObject()) });
 }
 
 async function deleteProject(req, res) {
@@ -234,13 +229,13 @@ async function deleteProject(req, res) {
   if (!oid) return;
   const { projectId } = req.params;
   if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
-    return sendJson(res, 400, { error: 'projectId invalide.' });
+    return res.status(400).json({ error: 'projectId invalide.' });
   }
   const result = await ProjectGoal.deleteOne({ _id: projectId, userId: oid });
   if (result.deletedCount === 0) {
-    return sendJson(res, 404, { error: 'Projet introuvable.' });
+    return res.status(404).json({ error: 'Projet introuvable.' });
   }
-  sendJson(res, 200, { ok: true });
+  res.status(200).json({ ok: true });
 }
 
 module.exports = {

@@ -1,6 +1,6 @@
 import { API_BASE_URL, API_FETCH_TIMEOUT_MS } from '../config/api';
 import { apiFetch, publicApiFetch, resolveApiUrl } from './apiFetch';
-import { setAuthToken } from './authSession';
+import { setAuthToken, setOnboardingToken } from './authSession';
 
 export type User = {
   _id: string;
@@ -154,7 +154,11 @@ export async function register(
     body: JSON.stringify(body),
   });
   if (data.token) {
-    await setAuthToken(data.token);
+    // Stockage en mémoire UNIQUEMENT → ne persiste pas dans SecureStore.
+    // Les appels authés pendant l'onboarding (setMerchant, createRecurringRule)
+    // fonctionneront via ce token, mais index.tsx ne détectera pas de session
+    // active et ne court-circuitera pas le parcours d'onboarding.
+    setOnboardingToken(data.token);
   }
   return data;
 }
