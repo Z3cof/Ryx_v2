@@ -6,15 +6,40 @@ const Transaction = require('../models/Transaction');
 const Quest = require('../models/Quest');
 const UserProgress = require('../models/UserProgress');
 const MonthlyBudget = require('../models/MonthlyBudget');
+const AdminSetting = require('../models/AdminSetting');
 
 const router = express.Router();
 
+let cachedSecret = null;
+let lastCacheTime = 0;
+
+async function getExpectedSecret() {
+  const now = Date.now();
+  if (cachedSecret && (now - lastCacheTime < 10000)) {
+    return cachedSecret;
+  }
+  try {
+    const dbSetting = await AdminSetting.findOne({ key: 'admin_secret' }).lean();
+    if (dbSetting && dbSetting.value) {
+      cachedSecret = dbSetting.value;
+      lastCacheTime = now;
+      return cachedSecret;
+    }
+  } catch (err) {
+    console.error('Error fetching admin secret from DB:', err);
+  }
+  const envSecret = process.env.ADMIN_SECRET;
+  cachedSecret = envSecret;
+  lastCacheTime = now;
+  return envSecret;
+}
+
 // ─── Middleware de protection admin ──────────────────────────────────────────
-function adminAuth(req, res, next) {
+async function adminAuth(req, res, next) {
   const secret = req.headers['x-admin-secret'];
-  const expected = process.env.ADMIN_SECRET;
+  const expected = await getExpectedSecret();
   if (!expected) {
-    return res.status(503).json({ error: 'Admin non configuré (ADMIN_SECRET manquant dans .env).' });
+    return res.status(503).json({ error: 'Admin non configuré (ADMIN_SECRET manquant).' });
   }
   if (!secret || secret !== expected) {
     return res.status(401).json({ error: 'Accès admin refusé.' });
@@ -403,5 +428,73 @@ router.get('/recent-users', asyncHandler(async (req, res) => {
   });
 }));
 
+// ─── Récupérer les paramètres d'administration ────────────────────────────────
+router.get('/settings', asyncHandler(async (req, res) => {
+  // Récupérer toutes les clés existantes
+  const allSettings = await AdminSetting.find().lean();
+  
+  // Chercher ou créer les valeurs par défaut
+  const getSettingValue = (key, defaultValue) => {
+    const s = allSettings.find(item => item.key === key);
+    return s ? s.value : defaultValue;
+  };
+
+  res.json({
+    maintenance_mode: getSettingValue('maintenance_mode', 'false') === 'true',
+    maintenance_message: getSettingValue('maintenance_message', 'Maintenance en cours. Ryx sera de retour sous peu.'),
+    whatsapp_mock_override: getSettingValue('whatsapp_mock_override', 'true') === 'true',
+  });
+}));
+
+// ─── Mettre à jour les paramètres d'administration ────────────────────────────
+router.post('/settings', asyncHandler(async (req, res) => {
+  const { admin_secret, maintenance_mode, maintenance_message, whatsapp_mock_override } = req.body;
+
+  // 1. Mise à jour de la clé d'administration si demandée
+  if (admin_secret !== undefined && admin_secret.trim() !== '') {
+    const cleanSecret = admin_secret.trim();
+    if (cleanSecret.length < 8) {
+      return res.status(400).json({ error: 'La clé secrète doit faire au moins 8 caractères.' });
+    }
+    await AdminSetting.findOneAndUpdate(
+      { key: 'admin_secret' },
+      { value: cleanSecret, description: 'Clé secrète de connexion au dashboard' },
+      { upsert: true, new: true }
+    );
+    cachedSecret = cleanSecret; // Mettre à jour le cache immédiat
+    lastCacheTime = Date.now();
+  }
+
+  // 2. Mode maintenance
+  if (maintenance_mode !== undefined) {
+    await AdminSetting.findOneAndUpdate(
+      { key: 'maintenance_mode' },
+      { value: String(maintenance_mode), description: 'Désactive l\'accès public de l\'API' },
+      { upsert: true }
+    );
+  }
+
+  // 3. Message de maintenance
+  if (maintenance_message !== undefined) {
+    await AdminSetting.findOneAndUpdate(
+      { key: 'maintenance_message' },
+      { value: String(maintenance_message), description: 'Message renvoyé aux utilisateurs en maintenance' },
+      { upsert: true }
+    );
+  }
+
+  // 4. WhatsApp mock override
+  if (whatsapp_mock_override !== undefined) {
+    await AdminSetting.findOneAndUpdate(
+      { key: 'whatsapp_mock_override' },
+      { value: String(whatsapp_mock_override), description: 'Simule l\'envoi OTP dans la console' },
+      { upsert: true }
+    );
+  }
+
+  res.json({ success: true, message: 'Paramètres mis à jour avec succès.' });
+}));
+
 module.exports = router;
+
 

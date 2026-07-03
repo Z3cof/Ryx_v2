@@ -74,4 +74,6 @@ export const api = {
   activity:               (days=14) => adminFetch(`/api/admin/activity?days=${days}`),
   rixyStats:              ()        => adminFetch('/api/admin/rixy/stats'),
   recentUsers:            (n=5)     => adminFetch(`/api/admin/recent-users?limit=${n}`),
+  getSettings:            ()        => adminFetch('/api/admin/settings'),
+  updateSettings:         (p)       => adminFetch('/api/admin/settings', { method: 'POST', body: JSON.stringify(p) }),
 };

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, BarChart3, Swords, Bot, Bell, Shield,
+  LayoutDashboard, Users, BarChart3, Swords, Bot, Bell, Shield, Settings,
   ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/rixy', icon: Bot, label: 'Rixy IA' },
   { to: '/notifications', icon: Bell, label: 'Notifications' },
   { to: '/security', icon: Shield, label: 'Sécurité' },
+  { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
 export default function Sidebar({ collapsed, onToggle, onLogout }) {

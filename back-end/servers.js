@@ -1,5 +1,6 @@
 // server.js
 const express = require('express');
+const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const cors = require('cors');
@@ -55,6 +56,25 @@ app.use(
   })
 );
 app.use(express.json({ limit: '1mb' }));
+
+// Middleware de maintenance dynamique
+const AdminSetting = require('./models/AdminSetting');
+app.use(async (req, res, next) => {
+  // Ne faire la vérification que si la base de données est connectée (évite les blocages pendant les tests unitaires HTTP)
+  if (mongoose.connection.readyState === 1 && req.originalUrl.startsWith('/api') && !req.originalUrl.startsWith('/api/admin') && req.originalUrl !== '/api/health') {
+    try {
+      const mode = await AdminSetting.findOne({ key: 'maintenance_mode' }).lean();
+      if (mode && mode.value === 'true') {
+        const msgSetting = await AdminSetting.findOne({ key: 'maintenance_message' }).lean();
+        const message = msgSetting ? msgSetting.value : 'Maintenance en cours. Ryx sera de retour sous peu.';
+        return res.status(503).json({ error: 'service_unavailable', message });
+      }
+    } catch (err) {
+      console.error('Error checking maintenance mode:', err);
+    }
+  }
+  next();
+});
 
 // Log des requêtes API (ne pas monter sur `/api` seul : évite tout effet de bord avec les routes `/api/...`)
 app.use((req, res, next) => {

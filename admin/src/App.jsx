@@ -12,6 +12,7 @@ import Quests from './pages/Quests';
 import Rixy from './pages/Rixy';
 import Notifications from './pages/Notifications';
 import Security from './pages/Security';
+import SettingsPage from './pages/Settings';
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
 function LoginPage({ onLogin }) {
@@ -150,6 +151,7 @@ export default function App() {
           <Route path="/rixy"          element={<Rixy />}         />
           <Route path="/notifications" element={<Notifications />}/>
           <Route path="/security"      element={<Security />}     />
+          <Route path="/settings"      element={<SettingsPage />} />
         </Routes>
       </main>
     </div>
