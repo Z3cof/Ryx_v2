@@ -15,4 +15,10 @@ router.post('/register-token', requireAuth, asyncHandler(async (req, res) => {
   res.status(200).json({ success: true });
 }));
 
+// Supprimer le pushToken (désactivation des notifications par l'utilisateur)
+router.delete('/unregister-token', requireAuth, asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.authUserId, { pushToken: null });
+  res.status(200).json({ success: true });
+}));
+
 module.exports = router;

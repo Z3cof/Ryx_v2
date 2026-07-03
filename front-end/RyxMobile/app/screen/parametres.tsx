@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,9 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import type { AppearancePreference } from '../../contexts/AppearanceContext';
 import { useLocale, type LanguagePreference } from '../../hooks/useLocale';
 import { useTranslation } from '../../hooks/useTranslation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { savePushToken, removePushToken } from '../../services/auth';
+import { registerForPushNotifications } from '../../services/notifications';
 
 const GRID_PADDING = 20;
 
@@ -262,6 +265,30 @@ export default function ParametresScreen() {
   const [email, setEmail] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(true);
+
+  // Clé de persistance de la préférence de notifications
+  const NOTIF_PREF_KEY = 'ryx_notif_enabled';
+
+  // Charger la préférence enregistrée au montage du composant
+  useEffect(() => {
+    AsyncStorage.getItem(NOTIF_PREF_KEY).then((val) => {
+      if (val !== null) setNotifEnabled(val === 'true');
+    });
+  }, []);
+
+  // Gérer le changement du toggle : persiste + appel backend
+  const handleNotifToggle = useCallback(async (value: boolean) => {
+    setNotifEnabled(value);
+    await AsyncStorage.setItem(NOTIF_PREF_KEY, String(value));
+    if (value) {
+      // Réactiver : re-demander la permission et renvoyer le token
+      const token = await registerForPushNotifications();
+      if (token) await savePushToken(token);
+    } else {
+      // Désactiver : supprimer le token côté backend
+      await removePushToken();
+    }
+  }, []);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
 
   const appearanceOptions = useMemo(
@@ -482,7 +509,7 @@ export default function ParametresScreen() {
             </View>
             <Switch
               value={notifEnabled}
-              onValueChange={setNotifEnabled}
+              onValueChange={handleNotifToggle}
               trackColor={{ false: colors.slate[200], true: primary.light }}
               thumbColor={notifEnabled ? primary.main : colors.slate[100]}
             />

@@ -355,3 +355,17 @@ export async function savePushToken(pushToken: string): Promise<void> {
     if (__DEV__) console.warn('[Ryx Push] Impossible d\'enregistrer le push token:', err);
   }
 }
+
+/**
+ * Supprime le token push Expo du backend pour désactiver les notifications.
+ * Silencieux en cas d'erreur.
+ */
+export async function removePushToken(): Promise<void> {
+  try {
+    await apiFetch('/api/notifications/unregister-token', {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    if (__DEV__) console.warn('[Ryx Push] Impossible de supprimer le push token:', err);
+  }
+}

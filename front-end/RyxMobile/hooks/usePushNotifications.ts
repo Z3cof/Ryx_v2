@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../services/notifications';
 import { savePushToken } from '../services/auth';
 
@@ -16,18 +17,24 @@ const SCREEN_ROUTES: Record<string, string> = {
   Profile: '/screen/mes-informations',
 };
 
+const NOTIF_PREF_KEY = 'ryx_notif_enabled';
+
 export const usePushNotifications = () => {
   const router = useRouter();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
-    // Enregistrement et envoi du token au backend au démarrage
-    registerForPushNotifications().then((token) => {
-      if (token) {
-        savePushToken(token).catch((err) => {
-          if (__DEV__) console.warn('[Ryx Push] Erreur envoi token:', err);
-        });
+    // Respecter la préférence de l'utilisateur : ne pas enregistrer si désactivé
+    AsyncStorage.getItem(NOTIF_PREF_KEY).then(async (val) => {
+      const isEnabled = val === null || val === 'true'; // true par défaut si jamais défini
+      if (isEnabled) {
+        const token = await registerForPushNotifications();
+        if (token) {
+          savePushToken(token).catch((err) => {
+            if (__DEV__) console.warn('[Ryx Push] Erreur envoi token:', err);
+          });
+        }
       }
     });
 
