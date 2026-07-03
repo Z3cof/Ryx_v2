@@ -14,7 +14,7 @@ const Wallet = require('../models/Wallet');
 
 /**
  * PATCH /api/users/:userId
- * Body: { isMerchant?: boolean, name?: string, email?: string, avatar?: string | null }
+ * Body: { name?: string, email?: string, avatar?: string | null }
  * Champs fournis uniquement : mise à jour partielle.
  */
 async function updateUser(req, res) {
@@ -40,9 +40,6 @@ async function updateUser(req, res) {
     updates.email = email;
   }
 
-  if (typeof body.isMerchant === 'boolean') {
-    updates.isMerchant = body.isMerchant;
-  }
 
   if ('avatar' in body) {
     if (body.avatar === null || body.avatar === '') {
@@ -65,7 +62,7 @@ async function updateUser(req, res) {
   }
 
   const user = await User.findByIdAndUpdate(userId, updates, { new: true })
-    .select('name email isMerchant avatar')
+    .select('name email avatar')
     .lean();
 
   if (!user) {
@@ -122,7 +119,7 @@ async function updatePhone(req, res) {
     },
     { new: true }
   )
-    .select('name email isMerchant avatar phoneE164 phoneVerified countryIso')
+    .select('name email avatar phoneE164 phoneVerified countryIso')
     .lean();
 
   if (!user) {

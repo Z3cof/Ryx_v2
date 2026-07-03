@@ -379,7 +379,7 @@ router.get('/recent-users', asyncHandler(async (req, res) => {
 
   const [recentUsers, totalUsers, activeThisMonth] = await Promise.all([
     User.find()
-      .select('name email createdAt suspended pushToken isMerchant')
+      .select('name email createdAt suspended pushToken')
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
@@ -397,7 +397,6 @@ router.get('/recent-users', asyncHandler(async (req, res) => {
       createdAt: u.createdAt,
       suspended: u.suspended ?? false,
       hasPushToken: !!u.pushToken,
-      isMerchant: u.isMerchant ?? false,
     })),
     totalUsers,
     activeThisMonth,

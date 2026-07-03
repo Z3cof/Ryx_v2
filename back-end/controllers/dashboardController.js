@@ -20,7 +20,7 @@ async function getDashboard(req, res) {
   }
 
   const user = await User.findById(userId)
-    .select('name email isMerchant avatar countryIso phoneE164')
+    .select('name email avatar countryIso phoneE164')
     .lean();
   if (!user) {
     return res.status(404).json({ error: 'Utilisateur introuvable.' });
@@ -193,7 +193,6 @@ async function getDashboard(req, res) {
     user: {
       name: user.name,
       email: user.email,
-      isMerchant: !!user.isMerchant,
       ...(user.avatar ? { avatar: user.avatar } : {}),
       ...(countryIsoJson ? { countryIso: countryIsoJson } : {}),
     },

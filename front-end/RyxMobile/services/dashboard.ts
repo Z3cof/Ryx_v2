@@ -2,7 +2,7 @@ import { apiFetch } from './apiFetch';
 import { cacheData, getCachedData, getDashboardCacheKey } from './offlineStorage';
 
 export type DashboardData = {
-  user: { name: string; email: string; isMerchant?: boolean; avatar?: string; countryIso?: string };
+  user: { name: string; email: string; avatar?: string; countryIso?: string };
   balance: number;
   currency: string;
   /** Revenus (entrées) du mois civil courant — aligné liste Dépenses / Entrées pour ce mois. */

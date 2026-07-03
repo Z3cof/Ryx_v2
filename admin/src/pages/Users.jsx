@@ -93,7 +93,6 @@ export default function Users() {
                     <th>Nom</th>
                     <th>Email</th>
                     <th>Date d'inscription</th>
-                    <th>Vendeur</th>
                     <th>Statut</th>
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -110,11 +109,6 @@ export default function Users() {
                       <td style={{ fontWeight: 700 }}>{user.name}</td>
                       <td style={{ color: 'var(--text-secondary)' }}>{user.email}</td>
                       <td style={{ color: 'var(--text-secondary)' }}>{new Date(user.createdAt).toLocaleDateString('fr-FR')}</td>
-                      <td>
-                        <span className={`status-pill ${user.isMerchant ? 'progress' : 'completed'}`} style={{ fontSize: 11 }}>
-                          {user.isMerchant ? 'Oui' : 'Non'}
-                        </span>
-                      </td>
                       <td>
                         <span className={`status-pill ${user.suspended ? 'canceled' : 'completed'}`} style={{ fontSize: 11 }}>
                           {user.suspended ? 'Suspendu' : 'Actif'}

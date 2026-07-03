@@ -6,7 +6,6 @@ export type User = {
   _id: string;
   name: string;
   email: string;
-  isMerchant?: boolean;
   /** Data URL base64 si définie côté serveur */
   avatar?: string;
   /** Pays (inscription), pour devise / affichage */
