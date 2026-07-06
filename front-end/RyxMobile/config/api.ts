@@ -42,7 +42,10 @@ function normalizeApiOrigin(url: string): string {
 }
 
 function getApiBaseUrl(): string {
-  if (!__DEV__) return normalizeApiOrigin('https://ton-api.com');
+  if (!__DEV__) {
+    const prodUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+    return normalizeApiOrigin(prodUrl && prodUrl.length > 0 ? prodUrl : 'https://ryx-v2.onrender.com');
+  }
 
   // En dev : localhost par defaut (simulateur). Pour telephone reel, mets EXPO_PUBLIC_USE_LAN=true dans .env
   const useLan = process.env.EXPO_PUBLIC_USE_LAN === 'true';

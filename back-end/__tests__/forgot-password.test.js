@@ -18,9 +18,9 @@ beforeEach(async () => {
 });
 
 describe('Forgot password', () => {
-  const email = 'reset.user@example.com';
-  const password = 'OldPassword1!';
-  const phone = '+2250707070710';
+  const email = process.env.TEST_USER_EMAIL || 'reset.user@test.ryx.local';
+  const password = process.env.TEST_USER_PASSWORD || 'OldPassword1!';
+  const phone = process.env.TEST_USER_PHONE || '+22500000001';
 
   beforeEach(async () => {
     await User.create({

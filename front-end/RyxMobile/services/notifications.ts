@@ -14,14 +14,17 @@ Notifications.setNotificationHandler({
   }),
 });
 
+export type PushRegisterResult = {
+  token: string | null;
+  error?: string;
+};
+
 /**
- * Demande les permissions push et retourne le token Expo.
- * Retourne null sur simulateur ou si permission refusée.
+ * Demande les permissions push et retourne le token Expo ou le message d'erreur.
  */
-export const registerForPushNotifications = async (): Promise<string | null> => {
+export const registerForPushNotifications = async (): Promise<PushRegisterResult> => {
   if (!Device.isDevice) {
-    if (__DEV__) console.warn('[Ryx Push] Notifications push nécessitent un appareil physique.');
-    return null;
+    return { token: null, error: 'Simulateur détecté (les notifications nécessitent un appareil physique).' };
   }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -33,8 +36,7 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
   }
 
   if (finalStatus !== 'granted') {
-    if (__DEV__) console.warn('[Ryx Push] Permission notifications refusée.');
-    return null;
+    return { token: null, error: 'Permission refusée (POST_NOTIFICATIONS non accordée par l’utilisateur).' };
   }
 
   // Canal Android obligatoire (ignoré sur iOS)
@@ -57,10 +59,12 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
     const tokenData = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined
     );
-    if (__DEV__) console.log('[Ryx Push] Token obtenu:', tokenData.data);
-    return tokenData.data;
-  } catch (err) {
-    console.error('[Ryx Push] Erreur obtention token:', err);
-    return null;
+    return { token: tokenData.data };
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    return { 
+      token: null, 
+      error: `Erreur ExpoToken : ${errMsg} (EAS projectId : ${projectId || 'indéfini'})` 
+    };
   }
 };

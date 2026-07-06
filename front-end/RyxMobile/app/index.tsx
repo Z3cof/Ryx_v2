@@ -210,15 +210,17 @@ export default function LandingScreen() {
             errMsg.includes('timeout') ||
             errMsg.includes('fetch');
 
-          if (isNetworkError && cachedUser) {
+          if (isNetworkError) {
             if (cancelled) return;
-            console.log('[Offline Boot] network issue. Loading cached user:', cachedUser._id);
+            const uId = cachedUser?._id || '';
+            const uName = cachedUser?.name || '';
+            console.log('[Offline Boot] network issue. Proceeding with active session token. Cache:', uId);
             router.replace({
               pathname: '/screen/accueil',
-              params: { userId: cachedUser._id, userName: cachedUser.name || '' },
+              params: { userId: uId, userName: uName },
             });
           } else {
-            // genuine auth failure or no cache, clear session
+            // genuine auth failure, clear session
             await clearAuthToken();
             await clearCachedUser();
             if (!cancelled) setSessionBooting(false);

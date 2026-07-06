@@ -24,6 +24,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from '../../hooks/useTranslation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { savePushToken } from '../../services/auth';
+import { registerForPushNotifications } from '../../services/notifications';
 import { RyxLoader } from '../../components/RyxLoader';
 import { UserAvatar } from '../../components/UserAvatar';
 import { fetchDashboard, type DashboardData } from '../../services/dashboard';
@@ -792,6 +795,24 @@ export default function AccueilScreen() {
   useEffect(() => {
     if (userId) void loadDashboard('initial');
   }, [userId, loadDashboard]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const NOTIF_PREF_KEY = 'ryx_notif_enabled';
+    AsyncStorage.getItem(NOTIF_PREF_KEY).then(async (val) => {
+      const isEnabled = val === null || val === 'true';
+      if (isEnabled) {
+        try {
+          const result = await registerForPushNotifications();
+          if (result.token) {
+            await savePushToken(result.token);
+          }
+        } catch (err) {
+          console.warn('[Ryx Push] Erreur lors de l’auto-enregistrement du token:', err);
+        }
+      }
+    });
+  }, [userId]);
 
   useFocusEffect(
     useCallback(() => {

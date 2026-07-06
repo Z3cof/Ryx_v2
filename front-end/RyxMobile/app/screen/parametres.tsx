@@ -282,8 +282,17 @@ export default function ParametresScreen() {
     await AsyncStorage.setItem(NOTIF_PREF_KEY, String(value));
     if (value) {
       // Réactiver : re-demander la permission et renvoyer le token
-      const token = await registerForPushNotifications();
-      if (token) await savePushToken(token);
+      const result = await registerForPushNotifications();
+      if (result.token) {
+        await savePushToken(result.token);
+      } else {
+        Alert.alert(
+          "Erreur d'activation",
+          result.error || "Impossible d'obtenir l'autorisation de notification."
+        );
+        setNotifEnabled(false);
+        await AsyncStorage.setItem(NOTIF_PREF_KEY, 'false');
+      }
     } else {
       // Désactiver : supprimer le token côté backend
       await removePushToken();

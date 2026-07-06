@@ -1,0 +1,166 @@
+diff --git a/node_modules/expo-symbols/build/SymbolView.js b/node_modules/expo-symbols/build/SymbolView.js
+index 09abf78..143d8d5 100644
+--- a/node_modules/expo-symbols/build/SymbolView.js
++++ b/node_modules/expo-symbols/build/SymbolView.js
+@@ -1,7 +1,7 @@
+ import { useFonts } from '@expo-google-fonts/material-symbols';
+ import { useMemo } from 'react';
+ import { Platform, PlatformColor, Text, View } from 'react-native';
+-import { androidSymbolToString } from './android';
++import { androidSymbolToString } from './android_platform';
+ import { getFont } from './utils';
+ // trying to mirror iOS implementation
+ const DEFAULT_SYMBOL_COLOR = Platform.OS === 'android' ? PlatformColor('@android:color/system_primary_dark') : '#7d9bd4';
+diff --git a/node_modules/expo-symbols/build/android/index.d.ts b/node_modules/expo-symbols/build/android_platform/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/index.js b/node_modules/expo-symbols/build/android_platform/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/index.js
+rename to node_modules/expo-symbols/build/android_platform/index.js
+diff --git a/node_modules/expo-symbols/build/android/index.js.map b/node_modules/expo-symbols/build/android_platform/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/index.js.map
+diff --git a/node_modules/expo-symbols/build/android/symbols.json b/node_modules/expo-symbols/build/android_platform/symbols.json
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/symbols.json
+rename to node_modules/expo-symbols/build/android_platform/symbols.json
+diff --git a/node_modules/expo-symbols/build/android/weights/bold/index.d.ts b/node_modules/expo-symbols/build/android_platform/weights/bold/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/bold/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/weights/bold/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/weights/bold/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/weights/bold/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/bold/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/weights/bold/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/weights/bold/index.js b/node_modules/expo-symbols/build/android_platform/weights/bold/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/bold/index.js
+rename to node_modules/expo-symbols/build/android_platform/weights/bold/index.js
+diff --git a/node_modules/expo-symbols/build/android/weights/bold/index.js.map b/node_modules/expo-symbols/build/android_platform/weights/bold/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/bold/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/weights/bold/index.js.map
+diff --git a/node_modules/expo-symbols/build/android/weights/extraLight/index.d.ts b/node_modules/expo-symbols/build/android_platform/weights/extraLight/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/extraLight/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/weights/extraLight/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/weights/extraLight/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/weights/extraLight/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/extraLight/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/weights/extraLight/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/weights/extraLight/index.js b/node_modules/expo-symbols/build/android_platform/weights/extraLight/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/extraLight/index.js
+rename to node_modules/expo-symbols/build/android_platform/weights/extraLight/index.js
+diff --git a/node_modules/expo-symbols/build/android/weights/extraLight/index.js.map b/node_modules/expo-symbols/build/android_platform/weights/extraLight/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/extraLight/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/weights/extraLight/index.js.map
+diff --git a/node_modules/expo-symbols/build/android/weights/light/index.d.ts b/node_modules/expo-symbols/build/android_platform/weights/light/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/light/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/weights/light/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/weights/light/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/weights/light/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/light/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/weights/light/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/weights/light/index.js b/node_modules/expo-symbols/build/android_platform/weights/light/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/light/index.js
+rename to node_modules/expo-symbols/build/android_platform/weights/light/index.js
+diff --git a/node_modules/expo-symbols/build/android/weights/light/index.js.map b/node_modules/expo-symbols/build/android_platform/weights/light/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/light/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/weights/light/index.js.map
+diff --git a/node_modules/expo-symbols/build/android/weights/medium/index.d.ts b/node_modules/expo-symbols/build/android_platform/weights/medium/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/medium/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/weights/medium/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/weights/medium/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/weights/medium/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/medium/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/weights/medium/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/weights/medium/index.js b/node_modules/expo-symbols/build/android_platform/weights/medium/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/medium/index.js
+rename to node_modules/expo-symbols/build/android_platform/weights/medium/index.js
+diff --git a/node_modules/expo-symbols/build/android/weights/medium/index.js.map b/node_modules/expo-symbols/build/android_platform/weights/medium/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/medium/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/weights/medium/index.js.map
+diff --git a/node_modules/expo-symbols/build/android/weights/regular/index.d.ts b/node_modules/expo-symbols/build/android_platform/weights/regular/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/regular/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/weights/regular/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/weights/regular/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/weights/regular/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/regular/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/weights/regular/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/weights/regular/index.js b/node_modules/expo-symbols/build/android_platform/weights/regular/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/regular/index.js
+rename to node_modules/expo-symbols/build/android_platform/weights/regular/index.js
+diff --git a/node_modules/expo-symbols/build/android/weights/regular/index.js.map b/node_modules/expo-symbols/build/android_platform/weights/regular/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/regular/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/weights/regular/index.js.map
+diff --git a/node_modules/expo-symbols/build/android/weights/semiBold/index.d.ts b/node_modules/expo-symbols/build/android_platform/weights/semiBold/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/semiBold/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/weights/semiBold/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/weights/semiBold/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/weights/semiBold/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/semiBold/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/weights/semiBold/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/weights/semiBold/index.js b/node_modules/expo-symbols/build/android_platform/weights/semiBold/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/semiBold/index.js
+rename to node_modules/expo-symbols/build/android_platform/weights/semiBold/index.js
+diff --git a/node_modules/expo-symbols/build/android/weights/semiBold/index.js.map b/node_modules/expo-symbols/build/android_platform/weights/semiBold/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/semiBold/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/weights/semiBold/index.js.map
+diff --git a/node_modules/expo-symbols/build/android/weights/thin/index.d.ts b/node_modules/expo-symbols/build/android_platform/weights/thin/index.d.ts
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/thin/index.d.ts
+rename to node_modules/expo-symbols/build/android_platform/weights/thin/index.d.ts
+diff --git a/node_modules/expo-symbols/build/android/weights/thin/index.d.ts.map b/node_modules/expo-symbols/build/android_platform/weights/thin/index.d.ts.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/thin/index.d.ts.map
+rename to node_modules/expo-symbols/build/android_platform/weights/thin/index.d.ts.map
+diff --git a/node_modules/expo-symbols/build/android/weights/thin/index.js b/node_modules/expo-symbols/build/android_platform/weights/thin/index.js
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/thin/index.js
+rename to node_modules/expo-symbols/build/android_platform/weights/thin/index.js
+diff --git a/node_modules/expo-symbols/build/android/weights/thin/index.js.map b/node_modules/expo-symbols/build/android_platform/weights/thin/index.js.map
+similarity index 100%
+rename from node_modules/expo-symbols/build/android/weights/thin/index.js.map
+rename to node_modules/expo-symbols/build/android_platform/weights/thin/index.js.map
+diff --git a/node_modules/expo-symbols/build/materialImageSource.js b/node_modules/expo-symbols/build/materialImageSource.js
+index 7b95b0e..6d569cb 100644
+--- a/node_modules/expo-symbols/build/materialImageSource.js
++++ b/node_modules/expo-symbols/build/materialImageSource.js
+@@ -1,5 +1,5 @@
+ import { renderToImageAsync, loadAsync } from 'expo-font';
+-import { androidSymbolToString } from './android';
++import { androidSymbolToString } from './android_platform';
+ import { getFont } from './utils';
+ /**
+  * Renders a Material Symbol to an image source.
+diff --git a/node_modules/expo-symbols/build/utils.js b/node_modules/expo-symbols/build/utils.js
+index ca65b49..9d445bc 100644
+--- a/node_modules/expo-symbols/build/utils.js
++++ b/node_modules/expo-symbols/build/utils.js
+@@ -1,4 +1,4 @@
+-import regular from './android/weights/regular';
++import regular from './android_platform/weights/regular';
+ export function getFont(weight) {
+     const platformWeight = typeof weight === 'object' ? weight.android : null;
+     if (!platformWeight)

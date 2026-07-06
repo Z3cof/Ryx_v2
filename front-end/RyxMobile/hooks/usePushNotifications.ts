@@ -25,13 +25,12 @@ export const usePushNotifications = () => {
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
-    // Respecter la préférence de l'utilisateur : ne pas enregistrer si désactivé
     AsyncStorage.getItem(NOTIF_PREF_KEY).then(async (val) => {
       const isEnabled = val === null || val === 'true'; // true par défaut si jamais défini
       if (isEnabled) {
-        const token = await registerForPushNotifications();
-        if (token) {
-          savePushToken(token).catch((err) => {
+        const result = await registerForPushNotifications();
+        if (result.token) {
+          savePushToken(result.token).catch((err) => {
             if (__DEV__) console.warn('[Ryx Push] Erreur envoi token:', err);
           });
         }

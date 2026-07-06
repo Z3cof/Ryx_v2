@@ -1,6 +1,6 @@
 import { API_BASE_URL, API_FETCH_TIMEOUT_MS } from '../config/api';
 import { apiFetch, publicApiFetch, resolveApiUrl } from './apiFetch';
-import { setAuthToken, setOnboardingToken } from './authSession';
+import { setAuthToken, setOnboardingToken, setCachedUser } from './authSession';
 
 export type User = {
   _id: string;
@@ -71,7 +71,7 @@ async function authJsonRequest<T>(
     });
   } catch (e) {
     const isAbort =
-      (e instanceof DOMException && e.name === 'AbortError') ||
+      (e != null && (e as any).name === 'AbortError') ||
       (e instanceof Error && (e.name === 'AbortError' || /aborted/i.test(e.message)));
     const msg = isAbort
       ? `Délai dépassé (${API_FETCH_TIMEOUT_MS / 1000}s) ou serveur injoignable.`
@@ -102,7 +102,7 @@ async function publicJsonRequest<T>(
     });
   } catch (e) {
     const isAbort =
-      (e instanceof DOMException && e.name === 'AbortError') ||
+      (e != null && (e as any).name === 'AbortError') ||
       (e instanceof Error && (e.name === 'AbortError' || /aborted/i.test(e.message)));
     const msg = isAbort
       ? `Délai dépassé (${API_FETCH_TIMEOUT_MS / 1000}s) ou serveur injoignable.`
@@ -126,6 +126,9 @@ export async function login(phoneE164: string, password: string): Promise<LoginR
   });
   if (data.token) {
     await setAuthToken(data.token);
+    if (data.user) {
+      await setCachedUser(data.user);
+    }
   }
   return data;
 }
