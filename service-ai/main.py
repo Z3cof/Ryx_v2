@@ -284,21 +284,26 @@ def build_system_prompt(locale: str, user_name: Optional[str]) -> str:
     """
     if locale == "en":
         base = (
-            "You are Ryx, a friendly budgeting assistant inside a mobile app for small merchants "
-            "and individuals in West Africa. You answer concisely, in plain language, and you never invent app features. "
+            "You are Rixy (also called Ryx), the AI financial assistant built into the Ryx mobile app — "
+            "a budgeting app for small merchants and individuals in West Africa. "
+            "Rixy was created by the Ryx team (Aboubacar Baradji and collaborators) as an intelligent companion "
+            "to help users manage their money, track expenses, and reach their financial goals. "
+            "When asked who you are, who created you, or what you do, answer clearly and warmly with this identity. "
+            "You answer concisely, in plain language, and you never invent app features. "
             "You prefer bullet points and short paragraphs."
         )
         if user_name:
             base += f" The user is called {user_name}."
         base += (
             " IMPORTANT SCOPE: Only answer questions about the user's finances (budgeting, expenses, income, balance, savings, "
-            "transactions, recurring items, shop sales/orders) and how to use the Ryx mobile app. "
+            "transactions, recurring items) and how to use the Ryx mobile app. "
             "You are fully knowledgeable about RyxQuest: the gamified quest system (types, XP, levels, streaks, auto-validation). "
             "Purchase advice (e.g. car, equipment, rent vs buy) IS in scope when tied to budget, affordability, or priorities. "
-            "Refuse trivia and general knowledge unrelated to money or the app (e.g. company founders, capitals, history, sports scores, coding homework)."
+            "Questions about your own identity (who are you, who made you, what is Rixy/Ryx) are ALWAYS in scope — answer them. "
+            "Refuse trivia and general knowledge unrelated to money or the app (e.g. capitals, history, sports scores, coding homework)."
         )
         base += (
-            " If the user asks for actions in the app (add expense, see budget, become a vendor, etc.), "
+            " If the user asks for actions in the app (add expense, see budget, etc.), "
             "explain step by step where to tap in the UI instead of pretending to perform the action."
             " IMPORTANT: Do NOT use markdown bold syntax (like **text** or *text*) in your response. Instead, "
             "structure your response using plain text spacing, lists (-), and emojis."
@@ -306,9 +311,13 @@ def build_system_prompt(locale: str, user_name: Optional[str]) -> str:
         return base + _app_guide("en") + _advice_rules("en")
 
     base = (
-        "Tu es Ryx, un assistant budget sympathique intégré dans une application mobile pour petits commerçants "
-        "et particuliers en Afrique de l'Ouest. Tu réponds en français simple, de façon concise, sans inventer "
-        "de fonctionnalités qui n'existent pas. Tu es expert sur RyxQuest : défis financiers gamifiés (quêtes), types de quêtes, "
+        "Tu es Rixy (aussi appelé Ryx), l'assistant financier IA intégré dans l'application mobile Ryx — "
+        "une app de gestion budgétaire pour petits commerçants et particuliers en Afrique de l'Ouest. "
+        "Rixy a été créé par l'équipe Ryx (Aboubacar Baradji et ses collaborateurs) pour aider les utilisateurs "
+        "à gérer leur argent, suivre leurs dépenses et atteindre leurs objectifs financiers. "
+        "Quand on te demande qui tu es, qui t'a créé ou ce que tu fais, réponds clairement et chaleureusement avec cette identité. "
+        "Tu réponds en français simple, de façon concise, sans inventer de fonctionnalités qui n'existent pas. "
+        "Tu es expert sur RyxQuest : défis financiers gamifiés (quêtes), types de quêtes, "
         "progression automatique (currentValue/targetValue), récompenses XP, niveaux et streaks. "
         "Tu peux expliquer le fonctionnement de RyxQuest et guider l'utilisateur vers l'onglet RyxQuest. "
         "Tu préfères les listes à puces et les petits paragraphes."
@@ -319,6 +328,7 @@ def build_system_prompt(locale: str, user_name: Optional[str]) -> str:
         " IMPORTANT (PÉRIMÈTRE) : tu ne réponds qu’aux questions sur les finances de l’utilisateur "
         "(budget, dépenses, entrées, solde, épargne, transactions, récurrents, ventes/commandes boutique) "
         "et sur l’utilisation de l’application Ryx. "
+        "Les questions sur ta propre identité (qui es-tu, qui t'a créé, qu'est-ce que Rixy/Ryx) font TOUJOURS partie du périmètre — réponds-y. "
         "Les conseils d’achat importants (voiture, logement, équipement…) liés au budget, aux moyens ou aux priorités "
         "font partie du périmètre. "
         "Refuse la culture générale sans lien (fondateur d’une entreprise, capitale d’un pays, histoire, sport, devoirs de code, etc.) "
@@ -346,6 +356,8 @@ _SCOPE_PATTERNS = [
     r"\b(récurrent|recurrent|mensuel|monthly|abonnement|subscription)\b",
     # Boutique / ventes
     r"\b(boutique|vendeur|seller|vente|ventes|sale|sales|commande|commandes|order|orders|produit|produits|product|products)\b",
+    # Identité de Rixy / l'assistant lui-même
+    r"\b(rixy|qui\s+(es[- ]tu|t'a|ta|est|vous|as|a)\s*(créé|cree|fait|conçu|concu|developpé|developpe)?|who\s+(are\s+you|made\s+you|created\s+you|built\s+you)|what\s+(is|are)\s+(rixy|ryx)|c'est\s+quoi\s+(rixy|ryx)|qu'?est[- ]ce\s+que\s+(rixy|ryx)|présente[- ]toi|présente\s+toi|introduc|introduce\s+yourself|tell\s+me\s+about\s+you)\b",
     # App Ryx / navigation
     r"\b(ryx|application|app|écran|ecran|profil|paramètres|parametres|accueil|connexion|login|inscription|register|otp|mot de passe|password|oublié|oublie|forgot)\b",
     # Projets / épargne
@@ -365,7 +377,8 @@ _SHORT_FOLLOWUP = re.compile(
 
 _GREETING_PATTERN = (
     r"\b(bonjour|salut|coucou|hello|hi|hey|bonsoir|bonne\s+(journée|journee)|bonne\s+soirée|bonne\s+soiree|"
-    r"comment\s+ça\s+va|comment\s+ca\s+va|comment\s+vas-tu|comment\s+allez-vous|how\s+are\s+you)\b"
+    r"comment\s+ça\s+va|comment\s+ca\s+va|comment\s+vas-tu|comment\s+allez-vous|how\s+are\s+you|"
+    r"qui\s+(es[- ]tu|t'a|ta|est)|who\s+(are\s+you|made\s+you|created\s+you)|présente[- ]toi|présente\s+toi|introduce\s+yourself|c'est\s+quoi\s+(rixy|ryx)|qu'?est[- ]ce\s+que\s+(rixy|ryx))\b"
 )
 
 
