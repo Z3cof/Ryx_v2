@@ -589,7 +589,7 @@ export default function RegisterScreen() {
         d.countryIso
       );
       clearRegisterDraft();
-      setPostRegisterCredentials(d.email, d.password);
+      await setPostRegisterCredentials(d.email, d.password);
       router.replace({
         pathname: '/auth/est-vendeur',
         params: { userId: res.user._id, userName: res.user.name || d.name },

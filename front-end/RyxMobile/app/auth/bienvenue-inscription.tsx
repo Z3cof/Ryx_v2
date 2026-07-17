@@ -140,7 +140,7 @@ export default function BienvenueInscriptionScreen() {
       await Promise.all([runAnimation(), minDelay]);
       if (cancelled) return;
       setSigningIn(true);
-      const creds = consumePostRegisterCredentials();
+      const creds = await consumePostRegisterCredentials();
       if (!creds) {
         router.replace('/auth/login');
         return;

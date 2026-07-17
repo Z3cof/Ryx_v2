@@ -1,20 +1,35 @@
+import * as SecureStore from 'expo-secure-store';
+
+const CREDENTIALS_KEY = 'ryx_post_register_creds_v1';
+
 /**
- * Identifiants saisis à l’inscription, conservés en mémoire le temps du parcours
- * jusqu’à l’écran de bienvenue (connexion automatique vers l’accueil).
- * Jamais persisté sur disque.
+ * Identifiants saisis à l’inscription, conservés temporairement de façon sécurisée
+ * pendant le parcours d'onboarding jusqu’à l’écran de bienvenue (connexion automatique).
  */
-let pending: { email: string; password: string } | null = null;
-
-export function setPostRegisterCredentials(email: string, password: string): void {
-  pending = { email: email.trim(), password };
+export async function setPostRegisterCredentials(email: string, password: string): Promise<void> {
+  try {
+    const data = JSON.stringify({ email: email.trim(), password });
+    await SecureStore.setItemAsync(CREDENTIALS_KEY, data);
+  } catch {
+    /* ignore */
+  }
 }
 
-export function consumePostRegisterCredentials(): { email: string; password: string } | null {
-  const p = pending;
-  pending = null;
-  return p;
+export async function consumePostRegisterCredentials(): Promise<{ email: string; password: string } | null> {
+  try {
+    const data = await SecureStore.getItemAsync(CREDENTIALS_KEY);
+    if (!data) return null;
+    await SecureStore.deleteItemAsync(CREDENTIALS_KEY);
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
 }
 
-export function clearPostRegisterCredentials(): void {
-  pending = null;
+export async function clearPostRegisterCredentials(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(CREDENTIALS_KEY);
+  } catch {
+    /* ignore */
+  }
 }

@@ -260,7 +260,7 @@ export default function LoginScreen() {
   const contentTranslateY = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
-    clearPostRegisterCredentials();
+    void clearPostRegisterCredentials();
   }, []);
 
   // Relance l'animation d'entrée à chaque fois que l'écran reprend le focus

@@ -235,7 +235,7 @@ export default function RegisterVerifyOtpScreen() {
         draft.countryIso
       );
       clearRegisterDraft();
-      setPostRegisterCredentials(draft.email, draft.password);
+      await setPostRegisterCredentials(draft.email, draft.password);
       router.replace({
         pathname: '/auth/est-vendeur',
         params: { userId: res.user._id, userName: res.user.name || draft.name },
