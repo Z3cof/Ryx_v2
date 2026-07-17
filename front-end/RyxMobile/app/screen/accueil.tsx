@@ -1021,7 +1021,10 @@ export default function AccueilScreen() {
            
           {/* Top navigation row */}
           <View style={styles.navBar}>
-            <View style={styles.userInfo}>
+            <Pressable
+              onPress={() => router.replace({ pathname: '/screen/parametres', params: { userId, userName } })}
+              style={({ pressed }) => [styles.userInfo, pressed && { opacity: 0.82 }]}
+            >
               <View style={styles.avatarWrap}>
                 <UserAvatar uri={data?.user?.avatar} size={42} />
               </View>
@@ -1029,7 +1032,7 @@ export default function AccueilScreen() {
                 <Text style={styles.navWelcome}>{greeting}</Text>
                 <Text style={styles.navUserName}>{userName}</Text>
               </View>
-            </View>
+            </Pressable>
             
             <Pressable
               onPress={() => setNotifPanelVisible(true)}

@@ -19,7 +19,7 @@ const fr: Tree = {
     welcomeLoading: 'Connexion…',
     registerPhoneLabel: 'Téléphone',
     registerCountryTitle: 'Indicatif pays',
-    registerPhoneNationalHint: 'Numéro local',
+    registerPhoneNationalHint: 'Votre numéro',
     registerPhoneDetectedLine: 'Pays / devise : {{country}} — {{currency}}',
     registerSendOtp: 'Recevoir le code par e-mail',
     registerSendingOtp: 'Envoi…',
