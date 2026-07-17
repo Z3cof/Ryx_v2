@@ -85,7 +85,7 @@ async function sendOtp(req, res) {
   } catch (e) {
     console.error('[OTP WhatsApp]', e.message || e);
     return res.status(502).json({
-      error: "Impossible d'envoyer le message WhatsApp. Réessayez plus tard.",
+      error: `Impossible d'envoyer le message WhatsApp : ${e.message || e}`,
     });
   }
 

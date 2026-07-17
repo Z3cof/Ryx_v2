@@ -1,3 +1,5 @@
+const { parsePhoneNumberFromString } = require('libphonenumber-js');
+
 /**
  * Envoie un message WhatsApp via Fonnte (fonnte.com).
  *
@@ -28,9 +30,19 @@ async function sendOtpTemplate(phoneDigitsWithoutPlus, otpCode) {
   const to = String(phoneDigitsWithoutPlus).replace(/^\+/, '');
   const message = `Votre code de vérification Ryx est : ${otpCode}`;
 
+  // Tenter d'extraire le code pays pour éviter le formatage par défaut indonésien (+62) de Fonnte
+  let countryCode = '';
+  const parsed = parsePhoneNumberFromString('+' + to);
+  if (parsed && parsed.countryCallingCode) {
+    countryCode = String(parsed.countryCallingCode);
+  }
+
   const formData = new URLSearchParams();
   formData.append('target', to);
   formData.append('message', message);
+  if (countryCode) {
+    formData.append('countryCode', countryCode);
+  }
 
   const response = await fetch('https://api.fonnte.com/send', {
     method: 'POST',
