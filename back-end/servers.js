@@ -91,6 +91,7 @@ app.get('/', (req, res) => {
 app.get('/api/health', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   const { isEmailOtpConfigured, getEmailJsConfig } = require('./services/emailSend');
+  const { isWhatsappMockEnabled } = require('./services/whatsappOtpSend');
   const emailjs = getEmailJsConfig();
   res.send(
     JSON.stringify({
@@ -105,7 +106,8 @@ app.get('/api/health', (req, res) => {
             privateKey: Boolean(emailjs.privateKey),
           }
         : null,
-      whatsappMock: process.env.WHATSAPP_MOCK === 'true' || process.env.WHATSAPP_MOCK === '1',
+      fonnteConfigured: Boolean(process.env.FONNTE_TOKEN),
+      whatsappMock: isWhatsappMockEnabled(),
     })
   );
 });

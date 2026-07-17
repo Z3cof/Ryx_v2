@@ -1,21 +1,19 @@
 /**
- * Envoie un message WhatsApp via Evolution API.
+ * Envoie un message WhatsApp via Fonnte (fonnte.com).
  *
- * Variables d’environnement :
- * - EVOLUTION_API_URL
- * - EVOLUTION_API_KEY
- * - EVOLUTION_INSTANCE_NAME
+ * Variables d'environnement requises :
+ * - FONNTE_TOKEN  : token de l'appareil récupéré dans le dashboard Fonnte
  *
- * Si WHATSAPP_MOCK=true ou clés manquantes : pas d’appel API (le code est logué côté contrôleur).
+ * Variables obsolètes (Evolution API / Railway) — ne plus utiliser :
+ * - EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE_NAME
+ *
+ * Si WHATSAPP_MOCK=true ou FONNTE_TOKEN manquant : pas d'appel API (le code est logué côté contrôleur).
  */
 function isWhatsappMockEnabled() {
   const isTest = process.env.NODE_ENV === 'test';
   const isMock = process.env.WHATSAPP_MOCK === '1' || process.env.WHATSAPP_MOCK === 'true';
-  const hasEvolutionConfig =
-    process.env.EVOLUTION_API_URL &&
-    process.env.EVOLUTION_API_KEY &&
-    process.env.EVOLUTION_INSTANCE_NAME;
-  return isTest || isMock || !hasEvolutionConfig;
+  const hasFonnteConfig = !!process.env.FONNTE_TOKEN;
+  return isTest || isMock || !hasFonnteConfig;
 }
 
 async function sendOtpTemplate(phoneDigitsWithoutPlus, otpCode) {
@@ -25,28 +23,29 @@ async function sendOtpTemplate(phoneDigitsWithoutPlus, otpCode) {
     return { mock: true };
   }
 
-  const apiUrl = process.env.EVOLUTION_API_URL.replace(/\/$/, '');
-  const instance = process.env.EVOLUTION_INSTANCE_NAME;
-  const apiKey = process.env.EVOLUTION_API_KEY;
+  const token = process.env.FONNTE_TOKEN;
+  // Fonnte accepte le numéro avec indicatif mais sans le "+"
   const to = String(phoneDigitsWithoutPlus).replace(/^\+/, '');
+  const message = `Votre code de vérification Ryx est : ${otpCode}`;
 
-  const payload = JSON.stringify({
-    number: to,
-    text: `Votre code de vérification Ryx est : ${otpCode}`
-  });
+  const formData = new URLSearchParams();
+  formData.append('target', to);
+  formData.append('message', message);
 
-  const response = await fetch(`${apiUrl}/message/sendText/${instance}`, {
+  const response = await fetch('https://api.fonnte.com/send', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'apikey': apiKey
+      'Authorization': token,
     },
-    body: payload
+    body: formData,
   });
 
   const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`Evolution API ${response.status}: ${text}`);
+  let data = {};
+  try { data = JSON.parse(text); } catch (_) {}
+
+  if (!response.ok || data.status === false) {
+    throw new Error(`Fonnte API ${response.status}: ${data.reason || text}`);
   }
 
   return { mock: false };
