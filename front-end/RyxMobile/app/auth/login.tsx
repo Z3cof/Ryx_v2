@@ -404,7 +404,7 @@ export default function LoginScreen() {
                 </Pressable>
                 <TextInput
                   style={[styles.input, styles.nationalInput]}
-                  placeholder="6 00 00 00 00"
+                  placeholder="Votre numéro"
                   placeholderTextColor={ui.textTertiary}
                   value={nationalPhone}
                   onChangeText={setNationalPhone}
