@@ -26,9 +26,7 @@ import { sendWhatsappOtp, verifyWhatsappOtp, updateUserPhone } from '../services
 import { CountryDialPickerModal } from './CountryDialPickerModal';
 
 function defaultCountryIso(): CountryCode {
-  const r = Localization.getLocales()[0]?.regionCode;
-  if (r && getCountries().includes(r as CountryCode)) return r as CountryCode;
-  return 'FR';
+  return 'ML';
 }
 
 function initialStateFromE164(phoneE164: string | undefined): { country: CountryCode; national: string } {

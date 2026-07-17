@@ -34,8 +34,6 @@ import { CountryDialPickerModal } from '../../components/CountryDialPickerModal'
 type Phase = 'phone' | 'otp' | 'password';
 
 function defaultCountryIso(): CountryCode {
-  const r = Localization.getLocales()[0]?.regionCode;
-  if (r && getCountries().includes(r as CountryCode)) return r as CountryCode;
   return 'ML';
 }
 
