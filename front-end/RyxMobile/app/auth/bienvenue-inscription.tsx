@@ -146,13 +146,17 @@ export default function BienvenueInscriptionScreen() {
         return;
       }
       try {
-        const res = await apiLogin(creds.email, creds.password);
+        const identifier = creds.phoneE164 || (creds as any).email;
+        const res = await apiLogin(identifier, creds.password);
         if (cancelled) return;
         router.replace({
           pathname: '/screen/accueil',
           params: { userId: res.user._id, userName: res.user.name || '' },
         });
-      } catch {
+      } catch (err) {
+        if (__DEV__) {
+          console.warn('[Onboarding auto-login failed]', err);
+        }
         if (!cancelled) router.replace('/auth/login');
       }
     })();
