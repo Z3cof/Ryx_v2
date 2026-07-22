@@ -6,6 +6,9 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
+import { useFonts } from 'expo-font';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppearanceProvider } from '@/contexts/AppearanceContext';
 import { LocaleProvider } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -20,15 +23,33 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootLayout() {
+  const [loaded, error] = useFonts({
+    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    ...FontAwesome.font,
+    ...Ionicons.font,
+  });
+
   usePushNotifications();
 
   useEffect(() => {
-    LogBox.ignoreLogs([
-      'Sending `onAnimatedValueUpdate` with no listeners registered.',
-    ]);
-    SplashScreen.hideAsync?.().catch(() => {});
-  }, []);
+    if (error) throw error;
+  }, [error]);
+
+  useEffect(() => {
+    if (loaded) {
+      LogBox.ignoreLogs([
+        'Sending `onAnimatedValueUpdate` with no listeners registered.',
+      ]);
+      SplashScreen.hideAsync?.().catch(() => {});
+    }
+  }, [loaded]);
+
+  if (!loaded) {
+    return null;
+  }
 
   return <RootLayoutNav />;
 }
