@@ -7,8 +7,6 @@ import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
 import { useFonts } from 'expo-font';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppearanceProvider } from '@/contexts/AppearanceContext';
 import { LocaleProvider } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -28,8 +26,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
-    ...Ionicons.font,
+    // Ionicons (utilisé partout dans l'app)
+    ionicons: require('../node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
+    // FontAwesome (fallback)
+    FontAwesome: require('../node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf'),
   });
 
   usePushNotifications();
