@@ -25,11 +25,18 @@ import { getAuthToken } from '../../services/authSession';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from '../../hooks/useTranslation';
 
-/** Renders a Rixy message with clean visual structure (bullets, paragraphs). */
+/** Renders a Rixy message with clean visual structure and converts emojis to vector Ionicons. */
 function RichBotText({ text, style }: { text: string; style?: any }) {
-  const { ui, primary, fontSize, spacing } = useAppTheme();
+  const { ui, primary, fontSize } = useAppTheme();
 
-  // Split on newlines, group consecutive bullets into blocks
+  // Helper to remove raw text emojis that fail to render on simulator due to missing AppleColorEmoji font
+  const cleanLine = (str: string) => {
+    return str
+      .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
   const lines = text.split('\n');
 
   const isBullet = (line: string) => /^[-•–]\s/.test(line.trimStart());
@@ -39,25 +46,60 @@ function RichBotText({ text, style }: { text: string; style?: any }) {
   let key = 0;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.trim() === '') {
-      // vertical spacer between paragraphs
+    const rawLine = lines[i];
+    if (rawLine.trim() === '') {
       elements.push(<View key={key++} style={{ height: 6 }} />);
-    } else if (isBullet(line)) {
+      continue;
+    }
+
+    const hasBulb = rawLine.includes('💡');
+    const hasMoney = rawLine.includes('💰') || rawLine.includes('💵');
+    const hasChart = rawLine.includes('📊') || rawLine.includes('📈');
+    const hasWarning = rawLine.includes('⚠️');
+    const hasTarget = rawLine.includes('🎯');
+    const hasFlash = rawLine.includes('⚡');
+
+    const line = cleanLine(rawLine);
+    if (!line) continue;
+
+    const iconPrefix = hasBulb ? (
+      <Ionicons name="bulb" size={16} color="#eab308" style={{ marginRight: 6, marginTop: 2 }} />
+    ) : hasMoney ? (
+      <Ionicons name="cash-outline" size={16} color="#16a34a" style={{ marginRight: 6, marginTop: 2 }} />
+    ) : hasChart ? (
+      <Ionicons name="stats-chart" size={16} color="#2563eb" style={{ marginRight: 6, marginTop: 2 }} />
+    ) : hasWarning ? (
+      <Ionicons name="alert-circle" size={16} color="#dc2626" style={{ marginRight: 6, marginTop: 2 }} />
+    ) : hasTarget ? (
+      <Ionicons name="flag" size={16} color="#7c3aed" style={{ marginRight: 6, marginTop: 2 }} />
+    ) : hasFlash ? (
+      <Ionicons name="flash" size={16} color="#d97706" style={{ marginRight: 6, marginTop: 2 }} />
+    ) : null;
+
+    if (isBullet(rawLine)) {
       elements.push(
-        <View key={key++} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 3 }}>
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: primary.main,
-              marginTop: (fontSize.base ?? 15) * 0.55,
-              marginRight: 8,
-              flexShrink: 0,
-            }}
-          />
-          <Text style={[style, { flex: 1 }]}>{bulletContent(line)}</Text>
+        <View key={key++} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+          {iconPrefix || (
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: primary.main,
+                marginTop: (fontSize.base ?? 15) * 0.55,
+                marginRight: 8,
+                flexShrink: 0,
+              }}
+            />
+          )}
+          <Text style={[style, { flex: 1 }]}>{cleanLine(bulletContent(rawLine))}</Text>
+        </View>
+      );
+    } else if (iconPrefix) {
+      elements.push(
+        <View key={key++} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+          {iconPrefix}
+          <Text style={[style, { flex: 1 }]}>{line}</Text>
         </View>
       );
     } else {

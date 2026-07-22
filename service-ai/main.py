@@ -204,6 +204,7 @@ def _advice_rules(locale: str) -> str:
         "- Voiture / logement / équipement : propose 2–3 options réalistes (économique / milieu / limite), "
         "coût mensuel estimé, et une recommandation claire (attendre / prudent / ok) avec raisons.\n"
         "- Si données insuffisantes, dis ce qu’il manque et donne des règles prudentes (réserve, priorité dettes).\n"
+        "- N'utilise pas d'emojis texte dans tes réponses (ex: pas de 💡, 💰, 📊, ⚡) ; utilise des puces simples (-) et du texte en gras.\n"
         "- Ton bienveillant ; pas de jugement ; conseils actionnables en puces.\n"
     )
 
