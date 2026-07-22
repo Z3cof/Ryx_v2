@@ -752,6 +752,12 @@ async def generate_quests(
     raise HTTPException(status_code=502, detail="Aucun modèle disponible.")
 
 
+@app.get("/")
+@app.head("/")
+async def root() -> dict:
+    return {"status": "ok", "service": "Ryx AI Service"}
+
+
 @app.get("/health")
 async def health() -> dict:
     mongo_status = await run_in_threadpool(test_mongo_connection)
