@@ -26,10 +26,9 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    // Ionicons (utilisé partout dans l'app)
-    ionicons: require('../node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
-    // FontAwesome (fallback)
-    FontAwesome: require('../node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf'),
+    // Ionicons - police vectorielle utilisée partout dans l'app
+    ionicons: require('../assets/fonts/Ionicons.ttf'),
+    FontAwesome: require('../assets/fonts/FontAwesome.ttf'),
   });
 
   usePushNotifications();
