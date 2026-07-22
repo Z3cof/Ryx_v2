@@ -335,6 +335,7 @@ export default function RyxQuestScreen() {
                         : 0;
                     const isReady = pct >= 100;
                     const isAutoComp = autoCompleting.has(q._id);
+                    const diff = DIFF_COLORS[q.difficulty] ?? DIFF_COLORS.easy;
                     const questIconMap: Record<string, string> = {
                       save_amount: 'trending-up',
                       limit_category: 'alert-circle-outline',
