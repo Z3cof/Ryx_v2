@@ -1083,9 +1083,12 @@ export default function AccueilScreen() {
               onPress={() => router.push({ pathname: '/screen/ryxquest', params: { userId, userName } })}
               style={({ pressed }) => [styles.headerCtaBtn, styles.headerCtaBtnSecondary, pressed && styles.btnPressed]}
             >
-              <Text style={[styles.headerCtaBtnText, styles.headerCtaBtnTextSecondary]}>
-                RyxQuest ⚡
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="flash" size={14} color="#d97706" />
+                <Text style={[styles.headerCtaBtnText, styles.headerCtaBtnTextSecondary]}>
+                  RyxQuest
+                </Text>
+              </View>
             </Pressable>
           </View>
         </View>
@@ -1279,7 +1282,7 @@ export default function AccueilScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.cardTitle} numberOfLines={1}>
-                  RyxQuest ⚡
+                  RyxQuest
                 </Text>
                 <Text style={styles.cardSub}>Relève les défis de Rixy pour booster tes finances</Text>
               </View>
