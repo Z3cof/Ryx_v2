@@ -335,7 +335,16 @@ export default function RyxQuestScreen() {
                         : 0;
                     const isReady = pct >= 100;
                     const isAutoComp = autoCompleting.has(q._id);
-                    const diff = DIFF_COLORS[q.difficulty] ?? DIFF_COLORS.easy;
+                    const questIconMap: Record<string, string> = {
+                      save_amount: 'trending-up',
+                      limit_category: 'alert-circle-outline',
+                      log_expenses: 'create-outline',
+                      reduce_expense: 'arrow-down-circle-outline',
+                      streak: 'flame',
+                      first_action: 'star-outline',
+                      custom: 'flash',
+                    };
+                    const questIconName = (questIconMap[q.type] ?? 'flash') as any;
 
                     return (
                       <View style={[styles.questCard, { backgroundColor: CARD, width: CARD_W }]}>
@@ -357,7 +366,9 @@ export default function RyxQuestScreen() {
                         </View>
 
                         {/* Icon + title */}
-                        <Text style={styles.questEmoji}>{q.icon || '⚡'}</Text>
+                        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 8, alignSelf: 'center' }}>
+                          <Ionicons name={questIconName} size={24} color="#d97706" />
+                        </View>
                         <Text style={[styles.questTitle, { color: TEXT }]}>{q.title}</Text>
 
                         {/* Stats row */}

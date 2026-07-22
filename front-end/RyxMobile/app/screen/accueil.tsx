@@ -848,7 +848,9 @@ export default function AccueilScreen() {
   }, [data?.transactions]);
 
   useEffect(() => {
-    if (!data || homeEnterAnimationDoneRef.current) return;
+    if (homeEnterAnimationDoneRef.current) return;
+    // Démarrer l'animation dès que loading=false (avec ou sans données — mode offline inclus)
+    if (loading) return;
     homeEnterAnimationDoneRef.current = true;
     Animated.stagger(80, [
       Animated.timing(animHeader, {
@@ -870,7 +872,7 @@ export default function AccueilScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [data]);
+  }, [loading, data]);
 
   const currentMonthExpenses = data?.currentMonthExpenses ?? 0;
   const hasDefinedBalance = monthlyBalance != null;
@@ -1350,9 +1352,21 @@ export default function AccueilScreen() {
                 ) : (
                   questsPreview.map((q) => {
                     const progressPercent = q.targetValue > 0 ? Math.min(100, Math.round((q.currentValue / q.targetValue) * 100)) : 0;
+                    const questIconMap: Record<string, string> = {
+                      save_amount: 'trending-up',
+                      limit_category: 'alert-circle-outline',
+                      log_expenses: 'create-outline',
+                      reduce_expense: 'arrow-down-circle-outline',
+                      streak: 'flame',
+                      first_action: 'star-outline',
+                      custom: 'flash',
+                    };
+                    const questIconName = (questIconMap[q.type] ?? 'flash') as any;
                     return (
                       <View key={q._id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: ui.background, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: ui.border }}>
-                        <Text style={{ fontSize: 18 }}>{q.icon || '⚡'}</Text>
+                        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name={questIconName} size={18} color="#d97706" />
+                        </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 12, fontWeight: '600', color: ui.textTitle }} numberOfLines={1}>
                             {q.title}
